@@ -159,6 +159,7 @@
                 <li class="active" data-target="dashboard"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></li>
                 <li data-target="analytics"><i class="fa-solid fa-chart-simple"></i> <span>Analytics</span></li>
                 <li data-target="subscriptions"><i class="fa-solid fa-calendar-days"></i> <span>Subscriptions</span></li>
+                <li id="openFeedbackBtn" onclick="openFeedbackModal()"><i class="fa-solid fa-comment-dots"></i> <span>Feedback</span></li>
                 <li id="openSettingsBtn" data-target="settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></li>
             </ul>
             <div class="user-profile" id="userProfileBtn" style="cursor: pointer;" title="Open Profile Settings">
@@ -193,11 +194,71 @@
                     <button class="btn-primary" onclick="openModal()">
                         <i class="fa-solid fa-plus"></i> Add Expense
                     </button>
+                    <div class="notification-wrapper">
+                        <button class="btn-text" id="notiBellBtn" title="Notifications">
+                            <i class="fa-solid fa-bell"></i>
+                            <span class="noti-badge" id="notiBadge" style="display:none;">0</span>
+                        </button>
+                        <div class="noti-dropdown glass-panel" id="notiDropdown">
+                            <div class="noti-header">
+                                <h3>Notifications</h3>
+                                <button class="btn-text" onclick="clearAllNotifications()" style="font-size:0.75rem;">Clear All</button>
+                            </div>
+                            <div class="noti-list" id="notiList">
+                                <!-- Notifications injected here -->
+                                <div class="empty-noti">No new notifications</div>
+                            </div>
+                        </div>
+                    </div>
                     <button class="btn-text" id="shareAppBtn" style="padding: 0.5rem; color: var(--accent-color); font-size: 1.25rem;" title="Share App">
                         <i class="fa-solid fa-share-nodes"></i>
                     </button>
                 </div>
             </header>
+
+            <!-- Executive Summary Bar -->
+            <div class="executive-summary">
+                <div class="summary-card glass-panel">
+                    <div class="summary-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <div class="summary-info">
+                        <span class="summary-label">Net Monthly</span>
+                        <h3 id="netMonthlyEl">$0.00</h3>
+                        <span class="summary-trend trend-up" id="netTrendEl"><i class="fa-solid fa-arrow-up"></i> 0%</span>
+                    </div>
+                </div>
+                <div class="summary-card glass-panel">
+                    <div class="summary-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--accent-color);">
+                        <i class="fa-solid fa-piggy-bank"></i>
+                    </div>
+                    <div class="summary-info">
+                        <span class="summary-label">Goal Progress</span>
+                        <h3 id="summaryGoalPct">0%</h3>
+                        <div class="summary-mini-progress"><div id="summaryGoalBar" style="width: 0%"></div></div>
+                    </div>
+                </div>
+                <div class="summary-card glass-panel">
+                    <div class="summary-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);">
+                        <i class="fa-solid fa-heart-pulse"></i>
+                    </div>
+                    <div class="summary-info">
+                        <span class="summary-label">Budget Health</span>
+                        <h3 id="budgetHealthStatus">Healthy</h3>
+                        <span class="summary-tag" id="budgetUsageTag">0% Used</span>
+                    </div>
+                </div>
+                <div class="summary-card glass-panel">
+                    <div class="summary-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                    <div class="summary-info">
+                        <span class="summary-label">Next Major Bill</span>
+                        <h3 id="nextMajorBill">None</h3>
+                        <span class="summary-tag" id="daysToBill">N/A</span>
+                    </div>
+                </div>
+            </div>
 
             <div class="dashboard-grid">
                 <!-- ATM Card Section -->
@@ -230,6 +291,36 @@
                             <button class="card-share-btn" id="shareCardBtn" title="Share My Card">
                                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
                             </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Savings Goal Section (Corrected Placement) -->
+                <section class="savings-goal-section">
+                    <div class="savings-goal-card glass-panel">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h3 style="font-size: 1.1rem;"><i class="fa-solid fa-piggy-bank" style="color:var(--accent-color);"></i> Savings Goal</h3>
+                            <button class="btn-text" onclick="openSettings()" style="font-size: 0.8rem;">Goal Detail</button>
+                        </div>
+                        <div class="savings-ring-container">
+                            <svg class="savings-svg" viewBox="0 0 100 100">
+                                <circle class="savings-bg" cx="50" cy="50" r="44"></circle>
+                                <circle class="savings-fill" cx="50" cy="50" r="44" id="goalProgressRing"></circle>
+                            </svg>
+                            <div class="savings-content">
+                                <span id="goalPercentText">0%</span>
+                                <small id="goalNameDisplay">Total Savings</small>
+                            </div>
+                        </div>
+                        <div class="savings-stats" style="margin-top: 1.5rem;">
+                            <div class="savings-stat">
+                                <span>Target</span>
+                                <strong id="goalTargetDisplay">$0</strong>
+                            </div>
+                            <div class="savings-stat">
+                                <span>Remaining</span>
+                                <strong id="goalRemainingDisplay">$0</strong>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -392,25 +483,33 @@
 
         <!-- Subscriptions Content Area -->
         <main class="main-content" id="subscriptions" style="display: none;">
-            <header class="top-header">
+            <header class="top-header" style="margin-bottom: 2rem;">
                 <div class="header-text">
-                    <h1>Subscriptions</h1>
-                    <p class="subtitle">Manage your recurring payments and fixed costs.</p>
+                    <h1>Subscription Analytics</h1>
+                    <p class="subtitle">Monitor your recurring burn rate and fixed costs.</p>
                 </div>
-                <div class="header-actions" style="margin-top: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: space-between; align-items: center; width: 100%;">
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn-primary" onclick="addTemplate('Rent', 1200, 'Bills')" style="font-size: 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color); color: var(--text-primary);">+ Add Rent</button>
-                        <button class="btn-primary" onclick="addTemplate('Netflix', 15.99, 'Entertainment')" style="font-size: 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color); color: var(--text-primary);">+ Add Netflix</button>
+                <div class="subscription-kpis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; width: 100%; margin-top: 2rem;">
+                    <div class="stat-card glass-panel" style="padding: 1.25rem;">
+                        <span class="summary-label">Monthly Burn</span>
+                        <h3 id="totalBurnAmount" style="font-size: 1.5rem; color: var(--danger);">$0.00</h3>
+                        <span class="summary-tag">Recurrent</span>
                     </div>
-                    <button class="btn-text" onclick="clearSubscriptions()" style="color: var(--danger); font-size: 0.85rem; padding: 0.5rem; text-decoration: underline;" title="Delete all recurring templates">
-                        <i class="fa-solid fa-broom"></i> Clear All Subscriptions
-                    </button>
+                    <div class="stat-card glass-panel" style="padding: 1.25rem;">
+                        <span class="summary-label">Yearly Projected</span>
+                        <h3 id="yearlyProjectedAmount" style="font-size: 1.5rem; color: var(--accent-color);">$0.00</h3>
+                        <span class="summary-tag">Estimate</span>
+                    </div>
+                    <div class="stat-card glass-panel" style="padding: 1.25rem;">
+                        <span class="summary-label">Active Subs</span>
+                        <h3 id="activeSubsCount" style="font-size: 1.5rem;">0</h3>
+                        <span class="summary-tag">Count</span>
+                    </div>
                 </div>
             </header>
             <div class="dashboard-grid">
                 <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem;">
                     <h3>Active Subscriptions</h3>
-                    <ul id="subscriptionList" class="transaction-list" style="margin-top: 1.5rem;">
+                    <ul id="subsList" class="transaction-list" style="margin-top: 1.5rem;">
                         <!-- Recurring items here -->
                     </ul>
                 </section>
@@ -508,6 +607,16 @@
                             </div>
                         </div>
                     </section>
+                    
+                    <section class="glass-panel" style="padding: 1.5rem;">
+                        <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-brain"></i> Smart Pro Advisor</h3>
+                        <div id="smartAdvisorContent" style="margin-top: 1rem;">
+                            <div class="advisor-tip">
+                                <i class="fa-solid fa-lightbulb" style="color: var(--accent-color);"></i>
+                                <span id="advisorTipText">Analyzing your data...</span>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <!-- Bar 3: Trends & Categories (Visual Analysis) -->
@@ -561,14 +670,17 @@
                     </div>
                 </section>
 
-                <!-- Support Row: Deep Dives -->
-                <div class="analytics-row">
+                <!-- Support Row: Deep Dives (Heatmap) -->
+                <div class="analytics-row" style="grid-column: 1 / -1;">
                     <section class="glass-panel" style="padding: 1.5rem;">
-                        <h3 style="margin-bottom: 1.5rem;">Spending Intensity (Heatmap)</h3>
-                        <div id="spendingHeatmap" class="heatmap-grid">
+                        <h3 style="margin-bottom: 1.5rem;"><i class="fa-solid fa-fire"></i> Spending Intensity (Heatmap)</h3>
+                        <div id="spendingHeatmap" class="heatmap-grid" style="gap: 12px; margin-top: 1rem;">
                             <!-- Injected via JS -->
                         </div>
                     </section>
+                </div>
+
+                <div class="analytics-row">
                     <section class="chart-section glass-panel" id="memberAnalytics" style="padding: 1.5rem; margin: 0;">
                         <h3>Spending by Family Member</h3>
                         <div class="chart-container" style="height: 180px;">
@@ -576,6 +688,31 @@
                         </div>
                     </section>
                 </div>
+
+                <!-- Split Money Summary Section -->
+                <section class="glass-panel" id="splitAnalytics" style="grid-column: 1 / -1; padding: 1.5rem; margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-handshake-angle"></i> Split Money Insights</h3>
+                        <span class="badge" id="totalSplitBadge">Total Split: $0</span>
+                    </div>
+                    <div class="split-insights-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                        <div class="split-stat-card" style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid var(--panel-border);">
+                            <p class="subtitle" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Most Split Partner</p>
+                            <h4 id="topSplitPartner" style="font-size: 1.25rem; margin-top: 0.5rem;">--</h4>
+                        </div>
+                        <div class="split-stat-card" style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid var(--panel-border);">
+                            <p class="subtitle" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Average Split Amount</p>
+                            <h4 id="avgSplitAmount" style="font-size: 1.25rem; margin-top: 0.5rem;">$0</h4>
+                        </div>
+                        <div class="split-stat-card" style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid var(--panel-border);">
+                            <p class="subtitle" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;">Split Frequency</p>
+                            <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.5rem;">
+                                <h4 id="splitCount" style="font-size: 1.25rem;">0</h4>
+                                <span style="font-size: 0.85rem; color: var(--text-secondary);">times this month</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
             </div>
         </main>
@@ -587,7 +724,22 @@
                     <h2>App Settings</h2>
                     <button class="close-btn" id="closeSettingsBtn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div class="settings-content">
+                <div class="settings-content scrollable-content">
+                    <div class="form-group" style="text-align: left;">
+                        <label>Preferred Currency</label>
+                        <select id="currencySelect">
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="JPY">JPY (¥)</option>
+                            <option value="CAD">CAD (C$)</option>
+                            <option value="AUD">AUD (A$)</option>
+                            <option value="CHF">CHF (Fr)</option>
+                            <option value="CNY">CNY (¥)</option>
+                            <option value="INR">INR (₹)</option>
+                            <option value="BRL">BRL (R$)</option>
+                        </select>
+                    </div>
                     <!-- Profile Box -->
                     <div class="settings-box">
                         <h3 class="box-title"><i class="fa-solid fa-user"></i> Profile Settings</h3>
@@ -751,59 +903,101 @@
             <div class="modal glass-panel">
                 <div class="modal-header">
                     <h2 id="modalTitle">Add New Record</h2>
-                    <button class="close-btn" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+                    <button type="button" class="close-btn" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
-                <div style="text-align: center; margin-bottom: 1.5rem;">
-                    <button type="button" id="voiceAddBtn" class="btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-primary); width: 100%; justify-content: center; box-shadow: none;">
-                        <i class="fa-solid fa-microphone"></i> Tap & Speak (e.g. "25 for Food")
-                    </button>
+                <div class="form-body scrollable-content">
+                    <div style="text-align: center; margin-bottom: 1.5rem;">
+                        <button type="button" id="voiceAddBtn" class="btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-primary); width: 100%; justify-content: center; box-shadow: none;">
+                            <i class="fa-solid fa-microphone"></i> Tap & Speak (e.g. "25 for Food")
+                        </button>
+                    </div>
+                    <form id="transactionForm">
+                        <div class="form-group type-toggle">
+                            <input type="radio" id="typeExpense" name="type" value="expense" checked>
+                            <label for="typeExpense">Expense</label>
+                            <input type="radio" id="typeIncome" name="type" value="income">
+                            <label for="typeIncome">Income</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="amount">Amount</label>
+                            <input type="number" id="amount" placeholder="0.00" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="category">Category</label>
+                            <select id="category" required>
+                                <option value="Food">🍔 Food & Dining</option>
+                                <option value="Transport">🚗 Transportation</option>
+                                <option value="Shopping">🛍️ Shopping</option>
+                                <option value="Bills">🧾 Bills & Utilities</option>
+                                <option value="Entertainment">🎬 Entertainment</option>
+                                <option value="Salary">💰 Salary / Income</option>
+                                <option value="Other">✨ Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="memberSelectorGroup" style="display: none;">
+                            <label for="memberSelector">Paid By</label>
+                            <select id="memberSelector"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="description">Note (Optional)</label>
+                            <input type="text" id="description" placeholder="What was this for?" autocomplete="off">
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+                            <label class="switch" style="width: 40px; height: 20px;">
+                                <input type="checkbox" id="isRecurring">
+                                <span class="slider round"></span>
+                            </label>
+                            <span style="font-size: 0.9rem; color: var(--text-secondary);">Set as Recurring</span>
+                            
+                            <select id="recurringFrequency" style="flex: 1; display: none; margin-left: auto;">
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly" selected>Monthly</option>
+                                <option value="yearly">Yearly</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="splitToggleGroup" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+                            <label class="switch" style="width: 40px; height: 20px;">
+                                <input type="checkbox" id="addWithSplit">
+                                <span class="slider round"></span>
+                            </label>
+                            <span style="font-size: 0.9rem; color: var(--text-secondary);">Split with others</span>
+                        </div>
+                        <button type="submit" class="btn-primary w-100" id="saveBtn">Save Transaction</button>
+                    </form>
                 </div>
-                <form id="transactionForm">
-                    <div class="form-group type-toggle">
-                        <input type="radio" id="typeExpense" name="type" value="expense" checked>
-                        <label for="typeExpense">Expense</label>
-                        <input type="radio" id="typeIncome" name="type" value="income">
-                        <label for="typeIncome">Income</label>
+            </div>
+        </div>
+
+        <!-- Split Bill Modal -->
+        <div class="modal-overlay" id="splitModal">
+            <div class="modal glass-panel">
+                <div class="modal-header">
+                    <h2><i class="fa-solid fa-handshake-angle"></i> Split This Bill</h2>
+                    <button class="close-btn" id="closeSplitModalBtn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="split-modal-body">
+                    <div class="split-details" id="splitDetails" style="margin-bottom: 2rem; padding: 1.25rem; background: rgba(255,255,255,0.03); border-radius: 15px; border: 1px solid var(--panel-border);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span class="subtitle">Total Amount</span>
+                            <span id="splitTotalAmount" style="font-weight: 700; font-size: 1.25rem; color: var(--accent-color);">$0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span class="subtitle">Per Person</span>
+                            <span id="splitPerPerson" style="font-weight: 600; color: var(--success);">$0.00</span>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="amount">Amount</label>
-                        <input type="number" id="amount" placeholder="0.00" step="0.01" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="category">Category</label>
-                        <select id="category" required>
-                            <option value="Food">🍔 Food & Dining</option>
-                            <option value="Transport">🚗 Transportation</option>
-                            <option value="Shopping">🛍️ Shopping</option>
-                            <option value="Bills">🧾 Bills & Utilities</option>
-                            <option value="Entertainment">🎬 Entertainment</option>
-                            <option value="Salary">💰 Salary / Income</option>
-                            <option value="Other">✨ Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="memberSelectorGroup" style="display: none;">
-                        <label for="memberSelector">Paid By</label>
-                        <select id="memberSelector"></select>
-                    </div>
-                    <div class="form-group">
-                        <label for="description">Note (Optional)</label>
-                        <input type="text" id="description" placeholder="What was this for?" autocomplete="off">
-                    </div>
-                    <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
-                        <label class="switch" style="width: 40px; height: 20px;">
-                            <input type="checkbox" id="isRecurring">
-                            <span class="slider round"></span>
-                        </label>
-                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Set as Recurring</span>
-                        
-                        <select id="recurringFrequency" style="flex: 1; display: none; margin-left: auto;">
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly" selected>Monthly</option>
-                            <option value="yearly">Yearly</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-primary w-100" id="saveBtn">Save Transaction</button>
-                </form>
+                    <div id="participantChecklist"></div>
+                </div>
+                
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;">Select Participants:</h3>
+                <div id="splitMembersList" class="split-members-list" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 250px; overflow-y: auto; padding-right: 0.5rem; margin-bottom: 2rem;">
+                    <!-- Checkboxes injected via JS -->
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button id="confirmSplitBtn" class="btn-primary" style="flex: 2; justify-content: center;">Confirm Split</button>
+                    <button class="btn-primary" onclick="selectAllSplitMembers()" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.05); box-shadow: none;">All</button>
+                </div>
             </div>
         </div>
     </div>
@@ -859,6 +1053,35 @@
         </div>
     </div>
 
+
+    <div class="modal-overlay" id="feedbackModal">
+        <div class="modal glass-panel">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-comment-dots"></i> User Feedback</h2>
+                <button class="close-btn" onclick="closeModal('feedbackModal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="form-body">
+                <p class="subtitle" style="margin-bottom: 1.5rem;">Help us improve Expense Pro with your bugs, suggestions, or comments.</p>
+                <div class="settings-box">
+                    <label>Category</label>
+                    <select id="feedbackCategory" class="currency-dropdown" style="width:100%; margin-top:0.5rem;">
+                        <option value="bug">🐛 Bug Report</option>
+                        <option value="suggestion">💡 Feature Suggestion</option>
+                        <option value="question">❓ Question</option>
+                        <option value="other">💬 Other</option>
+                    </select>
+                </div>
+                <div class="settings-box">
+                    <label>Message</label>
+                    <textarea id="feedbackMessage" rows="5" class="currency-dropdown" style="width:100%; margin-top:0.5rem; height:auto; padding:1rem;" placeholder="Tell us more..."></textarea>
+                    <div id="charCount" style="text-align:right; font-size:0.75rem; color:var(--text-secondary); margin-top:0.5rem;">0/1000</div>
+                </div>
+                <button id="submitFeedbackBtn" class="btn-primary" style="width:100%; justify-content:center; margin-top:1rem;" onclick="submitFeedback()">
+                    <i class="fa-solid fa-paper-plane"></i> Send Feedback
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

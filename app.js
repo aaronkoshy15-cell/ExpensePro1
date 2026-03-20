@@ -17,7 +17,19 @@ let customAvatarUrl = localStorage.getItem('customAvatarUrl') || null;
 let isHapticsEnabled = localStorage.getItem('isHapticsEnabled') !== 'false'; // default on
 let isSoundEnabled   = localStorage.getItem('isSoundEnabled')   !== 'false'; // default on
 
-let chartInstance = null;
+// Helper to close any modal and unlock body
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('active');
+        // Check if any other modal is still active before unlocking body
+        setTimeout(() => {
+            if (!document.querySelector('.modal-overlay.active')) {
+                document.body.classList.remove('modal-open');
+            }
+        }, 300);
+    }
+}
 let memberChartInstance = null;
 let editingId = null;
 
@@ -987,6 +999,7 @@ function updateUI() {
     renderTransactions();
     updateBalance();
     updateChart();
+    updateSplitAnalytics();
     
     if (userName && displayUsername && displayCardholder) {
         displayUsername.innerText = userName;
@@ -1208,6 +1221,9 @@ function renderTransactions() {
                     <button class="action-icon-btn edit-btn" onclick="openEditTransactionModal('${t.id}')" title="Edit">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
+                    <button class="action-icon-btn split-btn" onclick="openSplitModal('${t.id}')" title="Split Record">
+                        <i class="fa-solid fa-handshake-angle"></i>
+                    </button>
                     <button class="action-icon-btn delete-btn" onclick="deleteTransaction('${t.id}')" title="Delete">
                         <i class="fa-solid fa-trash"></i>
                     </button>
@@ -1257,6 +1273,7 @@ function openEditTransactionModal(id) {
 function openModal() {
     modalOverlay.style.display = 'flex';
     modalOverlay.classList.add('active');
+    document.body.classList.add('modal-open');
     document.getElementById('modalTitle').innerText = 'Add New Record';
     document.getElementById('saveBtn').innerText = 'Save Transaction';
     editingId = null;
@@ -1299,19 +1316,31 @@ function addTransaction(e) {
     saveBtn.classList.add('loading');
 
     setTimeout(() => {
-        if (editingId) {
-            const index = transactions.findIndex(t => t.id === editingId);
+        const addWithSplit = document.getElementById('addWithSplit')?.checked;
+        const editingTransactionId = editingId; // Use existing editingId
+        const selectedMember = isFamilyMode ? memberSelector.value : 'Me';
+        const isRecurring = isRecurringToggle?.checked || false;
+        const frequency = isRecurring ? recurringFrequencySelect.value : null;
+
+        const newTransaction = {
+            id: editingTransactionId || `t_${Date.now()}`,
+            type,
+            amount,
+            category,
+            description: finalDescription, // Use finalDescription
+            member: selectedMember,
+            isRecurring,
+            frequency,
+            lastProcessed: isRecurring ? new Date().toISOString() : null,
+            date: new Date().toISOString()
+        };
+
+        if (editingTransactionId) {
+            const index = transactions.findIndex(t => t.id === editingTransactionId);
             if (index !== -1) {
-                transactions[index] = {
-                    ...transactions[index],
-                    type,
-                    amount,
-                    category,
-                    description: finalDescription,
-                    isRecurring: isRecurringToggle?.checked || false,
-                    frequency: isRecurringToggle?.checked ? recurringFrequencySelect.value : null
-                };
+                transactions[index] = newTransaction;
             }
+            editingId = null; // Clear editingId after update
         } else {
             // Duplicate Check (omitted for brevity in this chunk, keeping original logic)
             const isDuplicate = transactions.find(t => 
@@ -1329,20 +1358,7 @@ function addTransaction(e) {
                     return;
                 }
             }
-
-            const newTransaction = {
-                id: Date.now().toString(),
-                type,
-                amount,
-                category,
-                description: finalDescription,
-                member: isFamilyMode ? memberSelector.value : 'Me',
-                isRecurring: isRecurringToggle?.checked || false,
-                frequency: isRecurringToggle?.checked ? recurringFrequencySelect.value : null,
-                lastProcessed: isRecurringToggle?.checked ? new Date().toISOString() : null,
-                date: new Date().toISOString()
-            };
-            transactions.push(newTransaction);
+            transactions.unshift(newTransaction); // Changed from push to unshift
         }
         
         showButtonSuccess(saveBtn, originalHtml);
@@ -1351,13 +1367,114 @@ function addTransaction(e) {
             transactionForm.reset();
             editingId = null;
             document.getElementById('typeExpense').checked = true;
-            modalOverlay.classList.remove('active');
+            closeModal('modalOverlay');
             window.clearSearch();
             updateUI();
             if (subscriptionsView.style.display !== 'none') renderSubscriptions();
+
+            if (addWithSplit) {
+                setTimeout(() => openSplitModal(newTransaction.id), 500);
+            }
         }, 500);
     }, 600);
 }
+
+window.cancelSubscription = function(id) {
+    const s = transactions.find(t => t.id === id);
+    if (!s) return;
+    
+    if (confirm(`Are you sure you want to cancel "${s.description}"? This will stop future recurring entries.`)) {
+        const subItems = document.querySelectorAll('.transaction-item');
+        subItems.forEach(item => {
+            if (item.querySelector('.t-title')?.innerText.includes(s.description)) {
+                item.classList.add('sub-item-cancelling');
+            }
+        });
+
+        setTimeout(() => {
+            transactions = transactions.filter(t => t.id !== id);
+            triggerHaptic(50);
+            playSound('success');
+            updateUI();
+            if (subscriptionsView.style.display !== 'none') renderSubscriptions();
+        }, 600);
+    }
+}
+
+// =====================================================
+// USER FEEDBACK PRO
+// =====================================================
+window.openFeedbackModal = function() {
+    const modal = document.getElementById('feedbackModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
+    triggerHaptic(20);
+};
+
+window.submitFeedback = function() {
+    const category = document.getElementById('feedbackCategory').value;
+    const message = document.getElementById('feedbackMessage').value.trim();
+    const btn = document.getElementById('submitFeedbackBtn');
+    const formBody = document.querySelector('#feedbackModal .form-body');
+    
+    if (!message) {
+        alert("Please enter a message");
+        return;
+    }
+    
+    btn.classList.add('loading');
+    const originalHtml = btn.innerHTML;
+    
+    // Mocking submission
+    setTimeout(() => {
+        btn.classList.remove('loading');
+        
+        // Show Success State
+        formBody.innerHTML = `
+            <div class="feedback-success">
+                <i class="fa-solid fa-circle-check"></i>
+                <h3>Thank You!</h3>
+                <p class="subtitle" style="margin-top:0.5rem;">Your ${category} has been sent successfully. We appreciate your input!</p>
+                <button class="btn-primary" style="margin-top:2rem; width:100%; justify-content:center;" onclick="closeModal('feedbackModal'); resetFeedbackUI();">Close</button>
+            </div>
+        `;
+        
+        playSound('success');
+        triggerHaptic(60);
+        
+        // Save to local for history if needed
+        const feedbackHistory = JSON.parse(localStorage.getItem('epro_feedback')) || [];
+        feedbackHistory.push({ category, message, time: new Date().toISOString() });
+        localStorage.setItem('epro_feedback', JSON.stringify(feedbackHistory));
+    }, 1500);
+};
+
+window.resetFeedbackUI = function() {
+    // We'll hard-reload via render logic next time, but for now:
+    setTimeout(() => location.reload(), 500); // Simple reset
+};
+
+// Character counter
+document.getElementById('feedbackMessage')?.addEventListener('input', (e) => {
+    const count = e.target.value.length;
+    const countEl = document.getElementById('charCount');
+    if (countEl) {
+        countEl.innerText = `${count}/1000`;
+        countEl.style.color = count > 900 ? 'var(--danger)' : 'var(--text-secondary)';
+    }
+});
+
+window.toggleSubscriptionPause = function(id) {
+    const s = transactions.find(t => t.id === id);
+    if (!s) return;
+    
+    s.isPaused = !s.isPaused;
+    triggerHaptic(30);
+    playSound('success');
+    renderSubscriptions();
+};
 
 /**
  * Creates a linear gradient for Chart.js
@@ -1428,18 +1545,25 @@ function updateChart() {
                     data: mData,
                     backgroundColor: gradient,
                     borderColor: 'rgba(99, 102, 241, 1)',
-                    borderWidth: 1.5,
-                    borderRadius: 8,
-                    maxBarThickness: 40
+                    borderWidth: 2,
+                    borderRadius: 12, // More rounded for premium feel
+                    maxBarThickness: 45,
+                    hoverBackgroundColor: 'rgba(99, 102, 241, 0.8)',
+                    hoverBorderColor: '#fff',
+                    hoverBorderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: 1500,
+                    easing: 'easeOutQuart'
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
                         ticks: { color: 'var(--text-secondary)', font: { family: 'Outfit', size: 11 } }
                     },
                     x: {
@@ -1450,12 +1574,18 @@ function updateChart() {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                        titleFont: { family: 'Outfit', size: 13 },
-                        bodyFont: { family: 'Outfit', size: 13 },
-                        padding: 12,
-                        cornerRadius: 10,
-                        displayColors: false
+                        enabled: true,
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { family: 'Outfit', size: 14, weight: 'bold' },
+                        bodyFont: { family: 'Outfit', size: 14 },
+                        padding: 15,
+                        cornerRadius: 15,
+                        displayColors: false,
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: (context) => ` Total: ${formatCurrency(context.parsed.y)}`
+                        }
                     }
                 }
             }
@@ -1620,38 +1750,224 @@ function updateChart() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    intersect: false,
-                    mode: 'index'
-                },
+                interaction: { intersect: false, mode: 'index' },
                 scales: {
                     y: {
                         beginAtZero: true,
                         grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
-                        ticks: { color: 'var(--text-secondary)', font: { size: 10 } }
+                        ticks: { color: 'var(--text-secondary)', callback: (v) => formatCurrency(v) }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: 'var(--text-secondary)', font: { size: 10 }, maxRotation: 0 }
+                        ticks: { color: 'var(--text-secondary)', autoSkip: true, maxTicksLimit: 10 }
                     }
                 },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                        padding: 12,
-                        cornerRadius: 10,
-                        titleFont: { size: 12 },
-                        bodyFont: { size: 13, weight: '600' }
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleFont: { family: 'Outfit', size: 14, weight: 'bold' },
+                        bodyFont: { family: 'Outfit', size: 14 },
+                        padding: 15,
+                        cornerRadius: 15,
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: (ctx) => ` Cumulative: ${formatCurrency(ctx.parsed.y)}`
+                        }
                     }
                 }
             }
         });
     }
-
-    // 6. Analytics Stats Overview
+    
     updateAnalyticsStats();
 }
+
+// =====================================================
+// SPLIT MONEY FEATURE
+// =====================================================
+let splitTransactionId = null;
+
+window.openSplitModal = function(id) {
+    const t = transactions.find(item => item.id === id);
+    if (!t) return;
+
+    splitTransactionId = id;
+    const modal = document.getElementById('splitModal');
+    const totalEl = document.getElementById('splitTotalAmount');
+    const titleEl = modal.querySelector('h2');
+    
+    titleEl.innerHTML = t.type === 'income' ? '<i class="fa-solid fa-handshake-angle"></i> Split This Income' : '<i class="fa-solid fa-handshake-angle"></i> Split This Bill';
+    
+    totalEl.innerText = new Intl.NumberFormat(undefined, { 
+        style: 'currency', 
+        currency: currentCurrency 
+    }).format(t.amount);
+    
+    renderSplitMembersList(t.amount);
+    modal.classList.add('active');
+    triggerHaptic(15);
+};
+
+function renderSplitMembersList(totalAmount) {
+    const container = document.getElementById('splitMembersList');
+    if (!container) return;
+    
+    // Always include 'Me' as a participant
+    const members = isFamilyMode ? ['Me', ...familyMembers] : ['Me'];
+    // Filter out duplicates if 'Me' is in familyMembers
+    const uniqueMembers = [...new Set(members)];
+    
+    container.innerHTML = uniqueMembers.map(m => `
+        <label class="split-member-item">
+            <input type="checkbox" name="splitMember" value="${m}" checked onchange="updateSplitCalc(${totalAmount})">
+            <div class="split-member-info">
+                <span class="split-member-name">${m}</span>
+                <span class="split-member-share" data-member="${m}"></span>
+            </div>
+        </label>
+    `).join('');
+    
+    updateSplitCalc(totalAmount);
+}
+
+window.updateSplitCalc = function(totalAmount) {
+    const checked = document.querySelectorAll('input[name="splitMember"]:checked');
+    const perPersonEl = document.getElementById('splitPerPerson');
+    const shareEls = document.querySelectorAll('.split-member-share');
+    
+    if (checked.length === 0) {
+        perPersonEl.innerText = '--';
+        shareEls.forEach(el => el.innerText = '');
+        return;
+    }
+    
+    const share = totalAmount / checked.length;
+    const formatted = new Intl.NumberFormat(undefined, { 
+        style: 'currency', 
+        currency: currentCurrency 
+    }).format(share);
+    
+    perPersonEl.innerText = formatted;
+    
+    // Update individual share labels
+    const checkedValues = Array.from(checked).map(c => c.value);
+    shareEls.forEach(el => {
+        const m = el.getAttribute('data-member');
+        el.innerText = checkedValues.includes(m) ? `Share: ${formatted}` : '';
+    });
+};
+
+window.selectAllSplitMembers = function() {
+    const checkboxes = document.querySelectorAll('input[name="splitMember"]');
+    checkboxes.forEach(c => c.checked = true);
+    // Get total from existing modal state or original transaction
+    const t = transactions.find(item => item.id === splitTransactionId);
+    if (t) updateSplitCalc(t.amount);
+};
+
+window.closeSplitModal = function() {
+    document.getElementById('splitModal').classList.remove('active');
+    splitTransactionId = null;
+};
+
+// Bind close button
+document.getElementById('closeSplitModalBtn')?.addEventListener('click', closeSplitModal);
+
+document.getElementById('confirmSplitBtn')?.addEventListener('click', () => {
+    const checked = document.querySelectorAll('input[name="splitMember"]:checked');
+    if (checked.length === 0) {
+        alert("Select at least one participant");
+        return;
+    }
+    
+    const tOriginal = transactions.find(t => t.id === splitTransactionId);
+    if (!tOriginal) return;
+    
+    const participants = Array.from(checked).map(c => c.value);
+    const count = participants.length;
+    
+    // Precision rounding: avoid floating point issues
+    const totalCents = Math.round(tOriginal.amount * 100);
+    const splitCents = Math.floor(totalCents / count);
+    const remainderCents = totalCents % count;
+    
+    // Remove original and add splits
+    transactions = transactions.filter(t => t.id !== splitTransactionId);
+    
+    participants.forEach((p, idx) => {
+        // Add 1 cent to the first N participants where N is the remainder
+        const currentAmountCents = splitCents + (idx < remainderCents ? 1 : 0);
+        
+        const splitTx = {
+            ...tOriginal,
+            id: `split_${Date.now()}_${idx}`,
+            amount: currentAmountCents / 100,
+            member: p,
+            isSplitChild: true,
+            splitParentId: splitTransactionId,
+            splitParticipants: participants
+        };
+        transactions.push(splitTx);
+    });
+    
+    playSound('success');
+    triggerHaptic(40);
+    closeSplitModal();
+    updateUI();
+    updateSplitAnalytics();
+});
+
+function updateSplitAnalytics() {
+    const totalSplitEl = document.getElementById('totalSplitBadge');
+    const topPartnerEl = document.getElementById('topSplitPartner');
+    const avgSplitEl = document.getElementById('avgSplitAmount');
+    const splitCountEl = document.getElementById('splitCount');
+    
+    if (!totalSplitEl) return;
+    
+    const splits = transactions.filter(t => t.isSplitChild);
+    if (splits.length === 0) {
+        totalSplitEl.innerText = 'Total Split: $0';
+        topPartnerEl.innerText = '--';
+        avgSplitEl.innerText = '$0';
+        splitCountEl.innerText = '0';
+        return;
+    }
+    
+    const totalSum = splits.reduce((acc, t) => acc + t.amount, 0);
+    const distinctSplits = new Set(splits.map(t => t.splitParentId)).size;
+    
+    // Partners (excluding 'Me')
+    const partners = {};
+    splits.forEach(t => {
+        if (t.member !== 'Me') {
+            partners[t.member] = (partners[t.member] || 0) + 1;
+        }
+    });
+    
+    let topPartner = '--';
+    let maxCount = 0;
+    for (const p in partners) {
+        if (partners[p] > maxCount) {
+            maxCount = partners[p];
+            topPartner = p;
+        }
+    }
+    
+    const format = (val) => new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(val);
+    
+    totalSplitEl.innerText = `Total Split: ${format(totalSum)}`;
+    topPartnerEl.innerText = topPartner;
+    avgSplitEl.innerText = format(totalSum / (splits.length || 1));
+    splitCountEl.innerText = distinctSplits;
+}
+
+// Ensure updateSplitAnalytics is called in updateUI
+// (Directly integrated above)
+
+/* Structure optimized above */
 
 function updateDetailedInsights(labels, data, total) {
     const insightEl = document.getElementById('spendingInsight');
@@ -2094,7 +2410,7 @@ if (saveSettingsBtn) {
             
             showButtonSuccess(saveSettingsBtn, originalHtml);
             setTimeout(() => {
-                settingsModal.classList.remove('active');
+                closeModal('settingsModal');
             }, 500);
         }, 800);
     });
@@ -2359,6 +2675,13 @@ if (SpeechRecognition) {
     }
 
     if (voicePanelClose) voicePanelClose.addEventListener('click', closeVoicePanel);
+    
+    window.closeDevicesModal = () => closeModal('devicesModal');
+    window.openDevicesModal = () => {
+        document.getElementById('devicesModal').style.display = 'block';
+        document.getElementById('devicesModal').classList.add('active');
+        document.body.classList.add('modal-open');
+    };
 
 } else {
     // Browser doesn't support speech — hide button
@@ -2411,6 +2734,7 @@ function renderSubscriptions() {
     subs.forEach(s => {
         const li = document.createElement('li');
         li.className = 'transaction-item';
+        li.style.padding = '0.5rem 0';
         li.innerHTML = `
             <div class="t-info">
                 <div class="t-title">${s.description}</div>
@@ -2561,33 +2885,65 @@ function updateBehavioralInsights() {
     const recurringEls = document.querySelectorAll('.recurring-value');
     const trendEls = document.querySelectorAll('.trend-value');
     const projectionEls = document.querySelectorAll('.projection-value');
+    const advisorText = document.getElementById('advisorTipText');
 
-    const updateAll = (els, html) => els.forEach(el => el.innerHTML = html);
+    if (transactions.length < 3) {
+        if (advisorText) advisorText.innerText = "Add at least 3 transactions to see your personalized advisor tips!";
+        return;
+    }
 
-    if (transactions.length < 3) return;
-
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
     const expenses = transactions.filter(t => t.type === 'expense');
-
-    // 1. Recurring Detection
-    const patterns = {};
-    expenses.forEach(t => {
-        const key = t.description.toLowerCase();
-        if (!patterns[key]) patterns[key] = [];
-        patterns[key].push(t);
+    const monthExpenses = expenses.filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
-    let recurringFound = [];
-    for (const desc in patterns) {
-        if (patterns[desc].length >= 2) {
-            recurringFound.push(`<strong>${desc}</strong> looks like a recurring monthly bill.`);
+    // 1. Smart Tips Engine
+    let tips = [];
+    
+    // Category Balance Check
+    const catTotals = {};
+    monthExpenses.forEach(t => catTotals[t.category] = (catTotals[t.category] || 0) + t.amount);
+    const sortedCats = Object.entries(catTotals).sort((a,b) => b[1] - a[1]);
+    
+    if (sortedCats.length > 0) {
+        const topCat = sortedCats[0];
+        tips.push(`Professional Tip: Your <strong>${topCat[0]}</strong> spending is the highest this month. Try to optimize this category first.`);
+    }
+
+    // Budget Health Pro Tip
+    if (monthlyBudget > 0) {
+        const spentVal = monthExpenses.reduce((s,t) => s+t.amount, 0);
+        const usedPct = (spentVal / monthlyBudget) * 100;
+        const dayPct = (now.getDate() / new Date(currentYear, currentMonth + 1, 0).getDate()) * 100;
+        
+        if (usedPct > dayPct + 10) {
+            tips.push(`Strategic Insight: You're spending faster than usual. Slow down on non-essentials to reach your end-of-month target.`);
+        } else if (usedPct < dayPct - 10) {
+            tips.push(`Great work! You're currently ${ (dayPct - usedPct).toFixed(0) }% below your expected spending curve.`);
         }
     }
-    if (recurringEls.length > 0) {
-        updateAll(recurringEls, recurringFound.length > 0 ? recurringFound[0] : "No repeating cycles detected yet.");
+
+    // Savings Momentum
+    if (goalAmount > 0) {
+        const inc = transactions.filter(t => t.type === 'income').reduce((s,t) => s+t.amount, 0);
+        const exp = transactions.filter(t => t.type === 'expense').reduce((s,t) => s+t.amount, 0);
+        const bal = inc - exp;
+        if (bal > goalAmount * 0.9) {
+            tips.push("High Momentum: You're in the 'Last Mile' of your savings goal! Avoid any impulse buys this week.");
+        }
+    }
+
+    if (advisorText && tips.length > 0) {
+        // Rotate tips every 10 seconds or show primary
+        const index = Math.floor(now.getTime() / 10000) % tips.length;
+        advisorText.innerHTML = tips[index];
     }
 
     // 2. Spending Velocity
-    const now = new Date();
     const last7 = now.getTime() - (7 * 24 * 60 * 60 * 1000);
     const prev14 = now.getTime() - (14 * 24 * 60 * 60 * 1000);
 
@@ -2608,12 +2964,9 @@ function updateBehavioralInsights() {
 
     // 3. Projections & Budget Advice
     if (projectionEls.length > 0) {
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
         const currentDay = now.getDate();
-        const totalThisMonth = expenses.filter(t => {
-            const d = new Date(t.date);
-            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        }).reduce((a,b) => a+b.amount, 0);
+        const totalThisMonth = monthExpenses.reduce((a,b) => a+b.amount, 0);
 
         if (currentDay > 1) {
             const projected = (totalThisMonth / currentDay) * daysInMonth;
@@ -2731,13 +3084,140 @@ updateUI = function() {
     
     // Handle Family Visibility
     if (familyMemberManager) familyMemberManager.style.display = isFamilyMode ? 'block' : 'none';
-    if (memberSelectorGroup) memberSelectorGroup.style.display = isFamilyMode ? 'block' : 'none';
+    if (memberSelectorGroup)    memberSelectorGroup.style.display = isFamilyMode ? 'block' : 'none';
+    const splitToggleGroup = document.getElementById('splitToggleGroup');
+    if (splitToggleGroup) splitToggleGroup.style.display = isFamilyMode ? 'flex' : 'none';
     
     const memberAnalytics = document.getElementById('memberAnalytics');
     if (memberAnalytics) memberAnalytics.style.display = isFamilyMode ? 'block' : 'none';
     
+    // NEW: Dashboard Professionals
+    updateDashboardKPIs();
+    updateSavingsGoalUI();
+    checkFinancialAlerts(); // NEW notification checks
+    
     updateMemberSelector();
 };
+
+// =====================================================
+// NOTIFICATION CENTER PRO
+// =====================================================
+let notifications = JSON.parse(localStorage.getItem('epro_notifications')) || [];
+
+window.addNotification = function(title, message, type = 'info') {
+    const newNoti = {
+        id: `noti_${Date.now()}`,
+        title,
+        message,
+        type,
+        time: new Date().toISOString(),
+        read: false
+    };
+    notifications.unshift(newNoti);
+    if (notifications.length > 50) notifications.pop(); // Cap at 50
+    localStorage.setItem('epro_notifications', JSON.stringify(notifications));
+    
+    // Play subtle sound if important
+    if (type === 'warning' || type === 'success') {
+        playSound('notification'); // We'll need a notification sound or reuse success
+        triggerHaptic(30);
+    }
+    
+    renderNotifications();
+};
+
+function renderNotifications() {
+    const notiList = document.getElementById('notiList');
+    const badge = document.getElementById('notiBadge');
+    if (!notiList || !badge) return;
+    
+    const unreadCount = notifications.filter(n => !n.read).length;
+    badge.innerText = unreadCount;
+    badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+    
+    if (notifications.length === 0) {
+        notiList.innerHTML = '<div class="empty-noti">No new notifications</div>';
+        return;
+    }
+    
+    notiList.innerHTML = notifications.map(n => {
+        let icon = 'fa-bell';
+        let bg = 'rgba(99, 102, 241, 0.1)';
+        let color = 'var(--accent-color)';
+        
+        if (n.type === 'warning') { icon = 'fa-triangle-exclamation'; bg = 'rgba(239, 68, 68, 0.1)'; color = 'var(--danger)'; }
+        if (n.type === 'success') { icon = 'fa-circle-check'; bg = 'rgba(16, 185, 129, 0.1)'; color = 'var(--success)'; }
+        if (n.type === 'budget') { icon = 'fa-wallet'; bg = 'rgba(245, 158, 11, 0.1)'; color = 'var(--warning)'; }
+
+        return `
+            <div class="noti-item ${n.read ? '' : 'unread'}" onclick="markAsRead('${n.id}')">
+                <div class="noti-icon" style="background: ${bg}; color: ${color};">
+                    <i class="fa-solid ${icon}"></i>
+                </div>
+                <div class="noti-content">
+                    <div class="noti-title">${n.title}</div>
+                    <div class="noti-msg">${n.message}</div>
+                    <div class="noti-time">${formatTimeAgo(n.time)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.markAsRead = function(id) {
+    const n = notifications.find(noti => noti.id === id);
+    if (n) {
+        n.read = true;
+        localStorage.setItem('epro_notifications', JSON.stringify(notifications));
+        renderNotifications();
+    }
+};
+
+window.clearAllNotifications = function() {
+    notifications = [];
+    localStorage.setItem('epro_notifications', JSON.stringify(notifications));
+    renderNotifications();
+};
+
+function formatTimeAgo(dateStr) {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 1000);
+    
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return d.toLocaleDateString();
+}
+
+function checkFinancialAlerts() {
+    // Budget Alert
+    if (monthlyBudget > 0) {
+        const expenses = transactions.filter(t => t.type === 'expense' && new Date(t.date).getMonth() === new Date().getMonth()).reduce((acc, t) => acc + t.amount, 0);
+        const pct = (expenses / monthlyBudget) * 100;
+        
+        if (pct >= 80 && !localStorage.getItem(`alert_budget_80_${new Date().getMonth()}`)) {
+            addNotification('Budget Critical', `You have used ${pct.toFixed(0)}% of your monthly budget.`, 'warning');
+            localStorage.setItem(`alert_budget_80_${new Date().getMonth()}`, 'true');
+        }
+    }
+}
+
+// Bind Notification Dropdown Toggle
+document.getElementById('notiBellBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('notiDropdown').classList.toggle('active');
+    triggerHaptic(15);
+});
+
+document.addEventListener('click', () => {
+    document.getElementById('notiDropdown')?.classList.remove('active');
+});
+
+document.getElementById('notiDropdown')?.addEventListener('click', (e) => e.stopPropagation());
+
+// Initial Render
+setTimeout(renderNotifications, 1000);
 
 // Social Sharing Logic
 if (shareAppBtn) {
@@ -2792,3 +3272,180 @@ if (currencySelector) {
     currencySelector.value = currentCurrency;
 }
 processRecurringExpenses();
+initGlareEffect();
+
+/**
+ * NEW: Professional Dashboard KPIs
+ */
+function updateDashboardKPIs() {
+    const netMonthlyEl = document.getElementById('netMonthlyEl');
+    const netTrendEl = document.getElementById('netTrendEl');
+    const summaryGoalPct = document.getElementById('summaryGoalPct');
+    const summaryGoalBar = document.getElementById('summaryGoalBar');
+    const budgetHealthStatus = document.getElementById('budgetHealthStatus');
+    const budgetUsageTag = document.getElementById('budgetUsageTag');
+    const nextMajorBill = document.getElementById('nextMajorBill');
+    const daysToBill = document.getElementById('daysToBill');
+
+    if (!netMonthlyEl) return;
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // 1. Net Monthly
+    const monthTx = transactions.filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    const incomeSum = monthTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const expenseSum = monthTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const net = incomeSum - expenseSum;
+
+    netMonthlyEl.innerText = formatCurrency(net);
+    netMonthlyEl.style.color = net >= 0 ? 'var(--success)' : 'var(--danger)';
+
+    // 2. Goal Progress (Mini)
+    if (goalAmount > 0) {
+        const pct = Math.min(100, Math.max(0, (totalBalance / goalAmount) * 100)).toFixed(0);
+        summaryGoalPct.innerText = `${pct}%`;
+        if (summaryGoalBar) summaryGoalBar.style.width = `${pct}%`;
+    }
+
+    // 3. Budget Health
+    if (monthlyBudget > 0) {
+        const usedPct = (expenseSum / monthlyBudget) * 100;
+        const dayOfMonth = now.getDate();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        const expectedPct = (dayOfMonth / daysInMonth) * 100;
+
+        if (budgetUsageTag) budgetUsageTag.innerText = `${usedPct.toFixed(0)}% Used`;
+        
+        if (usedPct > 100) {
+            budgetHealthStatus.innerText = 'Over Budget';
+            budgetHealthStatus.style.color = 'var(--danger)';
+        } else if (usedPct > expectedPct + 15) {
+            budgetHealthStatus.innerText = 'Warning';
+            budgetHealthStatus.style.color = 'var(--warning)';
+        } else {
+            budgetHealthStatus.innerText = 'Healthy';
+            budgetHealthStatus.style.color = 'var(--success)';
+        }
+    }
+
+    // 4. Next Major Bill
+    const recurring = transactions.filter(t => t.isRecurring && t.type === 'expense');
+    if (recurring.length > 0) {
+        const topBill = [...recurring].sort((a, b) => b.amount - a.amount)[0];
+        nextMajorBill.innerText = topBill.description;
+        daysToBill.innerText = formatCurrency(topBill.amount);
+    } else {
+        nextMajorBill.innerText = 'None';
+        daysToBill.innerText = 'N/A';
+    }
+    
+    updateSubscriptionInsights();
+}
+
+function updateSubscriptionInsights() {
+    const totalBurnEl = document.getElementById('totalBurnAmount');
+    const yearlyProjectedEl = document.getElementById('yearlyProjectedAmount');
+    const activeSubsCountEl = document.getElementById('activeSubsCount');
+
+    const recurring = transactions.filter(t => t.isRecurring && t.type === 'expense');
+    const monthlyTotal = recurring.reduce((sum, t) => sum + t.amount, 0);
+
+    if (totalBurnEl) totalBurnEl.innerText = formatCurrency(monthlyTotal);
+    if (yearlyProjectedEl) yearlyProjectedEl.innerText = formatCurrency(monthlyTotal * 12);
+    if (activeSubsCountEl) activeSubsCountEl.innerText = recurring.length;
+
+    // Update the list with countdowns
+    renderSubscriptionsListWithCountdowns(recurring);
+}
+
+function renderSubscriptionsListWithCountdowns(recurring) {
+    const subsList = document.getElementById('subsList');
+    if (!subsList) return;
+    
+    // Clear list but keep logic mostly same as original renderSubscriptions
+    subsList.innerHTML = '';
+    recurring.forEach(s => {
+        const li = document.createElement('li');
+        li.className = 'transaction-item glass-panel';
+        li.style.marginBottom = '0.75rem';
+        
+        // Calculate days until next occurrence (simplified)
+        const d = new Date(s.date);
+        const today = new Date();
+        const nextDate = new Date(today.getFullYear(), today.getMonth(), d.getDate());
+        if (nextDate < today) nextDate.setMonth(nextDate.getMonth() + 1);
+        const diffDays = Math.ceil((nextDate - today) / (1000 * 60 * 60 * 24));
+
+        li.innerHTML = `
+            <div class="t-info">
+                <div class="t-title">${s.description} ${s.isPaused ? '<span class="paused-tag">Paused</span>' : ''}</div>
+                <div class="t-date">${s.isPaused ? 'Recurrence paused' : 'Next payment in ' + diffDays + ' days'}</div>
+            </div>
+            <div class="t-amount-wrapper" style="text-align: right;">
+                <div class="t-amount text-red" style="opacity: ${s.isPaused ? 0.5 : 1}">-${formatCurrency(s.amount)}</div>
+                <div class="sub-actions" style="margin-top: 0.5rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="action-icon-btn" onclick="toggleSubscriptionPause('${s.id}')" title="${s.isPaused ? 'Resume' : 'Pause'}">
+                        <i class="fa-solid ${s.isPaused ? 'fa-play' : 'fa-pause'}"></i>
+                    </button>
+                    <button class="action-icon-btn" onclick="openEditTransactionModal('${s.id}')" title="Edit">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button class="action-icon-btn delete-btn" onclick="cancelSubscription('${s.id}')" title="Cancel Subscription">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        subsList.appendChild(li);
+    });
+}
+
+function updateSavingsGoalUI() {
+    const ring = document.getElementById('goalProgressRing');
+    const pctText = document.getElementById('goalPercentText');
+    const targetEl = document.getElementById('goalTargetDisplay');
+    const remainingEl = document.getElementById('goalRemainingDisplay');
+    const nameEl = document.getElementById('goalNameDisplay');
+
+    if (!ring) return;
+
+    if (nameEl) nameEl.innerText = goalName || 'Total Savings';
+    if (targetEl) targetEl.innerText = formatCurrency(goalAmount);
+    
+    if (goalAmount > 0) {
+        const pct = Math.min(100, Math.max(0, (totalBalance / goalAmount) * 100));
+        if (pctText) pctText.innerText = `${pct.toFixed(0)}%`;
+        
+        // Circular progress SVG logic
+        const radius = 44;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (pct / 100) * circumference;
+        ring.style.strokeDasharray = `${circumference} ${circumference}`;
+        ring.style.strokeDashoffset = offset;
+        
+        if (remainingEl) remainingEl.innerText = formatCurrency(Math.max(0, goalAmount - totalBalance));
+    } else {
+        if (pctText) pctText.innerText = '0%';
+        ring.style.strokeDashoffset = 2 * Math.PI * 44;
+        if (remainingEl) remainingEl.innerText = '--';
+    }
+}
+
+function initGlareEffect() {
+    document.addEventListener('mousemove', (e) => {
+        const panels = document.querySelectorAll('.glass-panel');
+        panels.forEach(panel => {
+            const rect = panel.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 100;
+            const y = ((e.clientY - rect.top) / rect.height) * 100;
+            panel.style.setProperty('--mouse-x', `${x}%`);
+            panel.style.setProperty('--mouse-y', `${y}%`);
+        });
+    });
+}

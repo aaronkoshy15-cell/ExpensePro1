@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ExpensePro - Premium Tracker</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- PDF Export Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <!-- Lock Screen -->
+    <div class="lock-screen" id="lockScreen" style="display: none;">
+        <div class="lock-panel glass-panel">
+            <div class="logo-icon" style="margin-bottom: 1.5rem;"><i class="fa-solid fa-lock"></i></div>
+            <h2 style="margin-bottom: 0.5rem;">Enter PIN</h2>
+            <p class="subtitle" style="margin-bottom: 2rem; text-align: center;">Please authenticate to continue</p>
+            <div class="pin-display">
+                <input type="password" id="pinInput" placeholder="••••" maxlength="4" autocomplete="off" readonly>
+            </div>
+            <div class="numpad">
+                <button class="num-btn" onclick="appendPin('1')">1</button>
+                <button class="num-btn" onclick="appendPin('2')">2</button>
+                <button class="num-btn" onclick="appendPin('3')">3</button>
+                <button class="num-btn" onclick="appendPin('4')">4</button>
+                <button class="num-btn" onclick="appendPin('5')">5</button>
+                <button class="num-btn" onclick="appendPin('6')">6</button>
+                <button class="num-btn" onclick="appendPin('7')">7</button>
+                <button class="num-btn" onclick="appendPin('8')">8</button>
+                <button class="num-btn" onclick="appendPin('9')">9</button>
+                <button class="num-btn action-btn text-red" onclick="clearPin()"><i class="fa-solid fa-delete-left"></i></button>
+                <button class="num-btn" onclick="appendPin('0')">0</button>
+                <button class="num-btn action-btn text-green" onclick="submitPin()"><i class="fa-solid fa-check"></i></button>
+            </div>
+            <p id="pinError" class="text-red" style="display: none; margin-top: 1rem; text-align: center;">Incorrect PIN</p>
+        </div>
+    </div>
+
+    <div class="app-container" id="appContainer">
+        <!-- Sidebar Navigation (Desktop) / Bottom Nav (Mobile) -->
+        <nav class="sidebar glass-panel">
+            <div class="logo">
+                <div class="logo-icon"><i class="fa-solid fa-wallet"></i></div>
+                <h2>ExpensePro</h2>
+            </div>
+            <ul class="nav-links">
+                <li class="active" data-target="dashboard"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></li>
+                <li data-target="analytics"><i class="fa-solid fa-chart-simple"></i> <span>Analytics</span></li>
+                <li data-target="subscriptions"><i class="fa-solid fa-calendar-days"></i> <span>Subscriptions</span></li>
+                <li id="openSettingsBtn" data-target="settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></li>
+            </ul>
+            <div class="user-profile" id="userProfileBtn" style="cursor: pointer;" title="Open Profile Settings">
+                <img src="https://api.dicebear.com/7.x/notionists/svg?seed=User" alt="User Avatar" class="avatar" id="displayAvatar">
+                <span class="username" id="displayUsername">User</span>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content" id="dashboard">
+            <header class="top-header">
+                <div class="header-text">
+                    <h1>Dashboard</h1>
+                    <p class="subtitle">Welcome back! Track your daily expenses.</p>
+                </div>
+                <div class="header-actions">
+                    <select id="currencySelector" class="currency-dropdown" onchange="changeCurrency(this.value)">
+                        <option value="USD">🇺🇸 USD ($)</option>
+                        <option value="EUR">🇪🇺 EUR (€)</option>
+                        <option value="GBP">🇬🇧 GBP (£)</option>
+                        <option value="INR">🇮🇳 INR (₹)</option>
+                        <option value="JPY">🇯🇵 JPY (¥)</option>
+                        <option value="AUD">🇦🇺 AUD ($)</option>
+                        <option value="CAD">🇨🇦 CAD ($)</option>
+                    </select>
+                    <button class="btn-primary" onclick="openModal()">
+                        <i class="fa-solid fa-plus"></i> Add Expense
+                    </button>
+                    <button class="btn-text" id="shareAppBtn" style="padding: 0.5rem; color: var(--accent-color); font-size: 1.25rem;" title="Share App">
+                        <i class="fa-solid fa-share-nodes"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- ATM Card Section -->
+                <section class="card-section">
+                    <div class="atm-card-container" id="atmCard">
+                        <div class="atm-card glass-panel">
+                            <div class="card-glare"></div>
+                            <div class="card-header">
+                                <div class="bank-name">EXPENSEPRO PREMIUM</div>
+                                <i class="fa-solid fa-wifi card-contactless" style="transform: rotate(90deg); opacity: 0.6; font-size: 0.9rem;"></i>
+                            </div>
+                            
+                            <div class="card-chip">
+                                <span class="chip-line"></span><span class="chip-line"></span>
+                                <span class="chip-line"></span><span class="chip-line"></span>
+                            </div>
+
+                            <div class="card-balance">
+                                <p class="balance-label">Total Balance</p>
+                                <h2 id="totalBalance">$0.00</h2>
+                            </div>
+                            
+                            <div class="card-footer">
+                                <div class="footer-left">
+                                    <span class="card-label">CARD HOLDER</span>
+                                    <span class="card-holder-name" id="displayCardholder">User Name</span>
+                                </div>
+                                <i class="fa-brands fa-cc-visa card-network-logo"></i>
+                            </div>
+                            <button class="card-share-btn" id="shareCardBtn" title="Share My Card">
+                                <i class="fa-solid fa-arrow-up-from-bracket"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Stats Overview -->
+                <section class="stats-section glass-panel">
+                    <div class="stat-box income">
+                        <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                        <div class="stat-details">
+                            <p>Income</p>
+                            <h3 id="totalIncome" class="text-green">$0.00</h3>
+                        </div>
+                    </div>
+                    <div class="stat-box expense">
+                        <div class="stat-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                        <div class="stat-details">
+                            <p>Expenses</p>
+                            <h3 id="totalExpense" class="text-red">$0.00</h3>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Quick Analytics Chart -->
+                <section class="chart-section glass-panel">
+                    <h3>Spending Overview</h3>
+                    <div class="chart-container">
+                        <canvas id="spendingChart"></canvas>
+                    </div>
+                </section>
+                
+                <!-- Recent Transactions -->
+                <section class="transactions-section glass-panel">
+                    <div class="section-header">
+                        <h3>Recent Transactions</h3>
+                        <button class="btn-text">View All</button>
+                    </div>
+                    <ul class="transaction-list" id="transactionList">
+                        <!-- Transactions injected via JS -->
+                        <div class="empty-state">No transactions yet. Add one!</div>
+                    </ul>
+                </section>
+
+                <!-- Budget Alert Box -->
+                <section class="glass-panel" id="budgetContainer" style="display: none;">
+                    <h3 class="box-title"><i class="fa-solid fa-bullseye"></i> Budget Status</h3>
+                    <div class="budget-info" style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        <span>Monthly Spend</span>
+                        <span id="budgetRatio" style="font-weight: 600;">$0 / $0</span>
+                    </div>
+                    <div class="budget-bar">
+                        <div class="budget-fill" id="budgetFill"></div>
+                    </div>
+                    <p id="budgetAlertMsg" style="display: none; font-size: 0.85rem; color: var(--danger); margin-top: 0.75rem; font-weight: 500;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Budget Exceeded!
+                    </p>
+                </section>
+
+                <!-- Savings Goal Box -->
+                <section class="glass-panel" id="goalTracker" style="display: none;">
+                    <h3 class="box-title"><i class="fa-solid fa-piggy-bank"></i> <span id="displayGoalName">Savings Goal</span></h3>
+                    <div class="budget-info" style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                        <span>Progress</span>
+                        <span id="displayGoalRatio" style="font-weight: 600;">$0 / $0</span>
+                    </div>
+                    <div class="budget-bar">
+                        <div class="budget-fill" id="goalFill" style="background-color: var(--success);"></div>
+                    </div>
+                    <p id="goalCompleteMsg" style="display: none; font-size: 0.85rem; color: var(--success); margin-top: 0.75rem; font-weight: 600;">
+                        <i class="fa-solid fa-crown"></i> Goal Achieved!
+                    </p>
+                </section>
+            </div>
+        </main>
+
+        <!-- Subscriptions Content Area -->
+        <main class="main-content" id="subscriptions" style="display: none;">
+            <header class="top-header">
+                <div class="header-text">
+                    <h1>Subscriptions</h1>
+                    <p class="subtitle">Manage your recurring payments and fixed costs.</p>
+                </div>
+                <div class="header-actions" style="margin-top: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: space-between; align-items: center; width: 100%;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn-primary" onclick="addTemplate('Rent', 1200, 'Bills')" style="font-size: 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color); color: var(--text-primary);">+ Add Rent</button>
+                        <button class="btn-primary" onclick="addTemplate('Netflix', 15.99, 'Entertainment')" style="font-size: 0.8rem; background: rgba(255,255,255,0.1); border: 1px solid var(--accent-color); color: var(--text-primary);">+ Add Netflix</button>
+                    </div>
+                    <button class="btn-text" onclick="clearSubscriptions()" style="color: var(--danger); font-size: 0.85rem; padding: 0.5rem; text-decoration: underline;" title="Delete all recurring templates">
+                        <i class="fa-solid fa-broom"></i> Clear All Subscriptions
+                    </button>
+                </div>
+            </header>
+            <div class="dashboard-grid">
+                <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem;">
+                    <h3>Active Subscriptions</h3>
+                    <ul id="subscriptionList" class="transaction-list" style="margin-top: 1.5rem;">
+                        <!-- Recurring items here -->
+                    </ul>
+                </section>
+
+                <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3>Linked Payment Apps</h3>
+                        <button class="btn-text" style="font-size: 0.8rem;" onclick="alert('Searching for nearby payment apps...')">+ Link New App</button>
+                    </div>
+                    <div class="payment-apps-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem;">
+                        <div class="pay-app-card glass-panel" id="app-paypal" onclick="checkAppConnection('PayPal')" style="padding: 1.25rem; text-align: center; border: 1px solid var(--success);">
+                            <i class="fa-brands fa-paypal" style="font-size: 2rem; color: #003087; margin-bottom: 0.75rem; display: block;"></i>
+                            <span style="font-size: 0.85rem; font-weight: 600;">PayPal</span>
+                            <p class="app-status" style="font-size: 0.65rem; color: var(--success); margin-top: 4px;"><i class="fa-solid fa-circle-check"></i> Connected</p>
+                        </div>
+                        <div class="pay-app-card glass-panel" id="app-googlepay" onclick="checkAppConnection('Google Pay')" style="padding: 1.25rem; text-align: center; border: 1px solid var(--success);">
+                            <i class="fa-brands fa-google-pay" style="font-size: 2rem; color: #ea4335; margin-bottom: 0.75rem; display: block;"></i>
+                            <span style="font-size: 0.85rem; font-weight: 600;">Google Pay</span>
+                            <p class="app-status" style="font-size: 0.65rem; color: var(--success); margin-top: 4px;"><i class="fa-solid fa-circle-check"></i> Connected</p>
+                        </div>
+                        <div class="pay-app-card glass-panel" id="app-applepay" onclick="checkAppConnection('Apple Pay')" style="padding: 1.25rem; text-align: center; opacity: 0.6; filter: grayscale(1);">
+                            <i class="fa-brands fa-apple-pay" style="font-size: 2rem; color: white; margin-bottom: 0.75rem; display: block;"></i>
+                            <span style="font-size: 0.85rem; font-weight: 600;">Apple Pay</span>
+                            <p class="app-status" style="font-size: 0.65rem; color: var(--text-secondary); margin-top: 4px;">Not Linked</p>
+                        </div>
+                        <div class="pay-app-card glass-panel" id="app-amazonpay" onclick="checkAppConnection('Amazon Pay')" style="padding: 1.25rem; text-align: center; opacity: 0.6; filter: grayscale(1);">
+                            <i class="fa-brands fa-amazon-pay" style="font-size: 2rem; color: #ff9900; margin-bottom: 0.75rem; display: block;"></i>
+                            <span style="font-size: 0.85rem; font-weight: 600;">Amazon Pay</span>
+                            <p class="app-status" style="font-size: 0.65rem; color: var(--text-secondary); margin-top: 4px;">Not Linked</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Analytics Content Area -->
+        <main class="main-content" id="analytics" style="display: none;">
+            <header class="top-header">
+                <div class="header-text">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                        <div>
+                            <h1>Analytics</h1>
+                            <p class="subtitle">Detailed breakdown of your spending habits.</p>
+                        </div>
+                        <button id="downloadPdfBtn" class="btn-primary" style="width: auto; padding: 0.8rem 1.2rem; background: var(--accent-color); font-size: 0.9rem;">
+                            <i class="fa-solid fa-file-pdf"></i> Export PDF Report
+                        </button>
+                    </div>
+                </div>
+            </header>
+            <div class="dashboard-grid">
+                <section class="chart-section glass-panel" style="grid-column: 1 / -1;">
+                    <h3>Spending by Category</h3>
+                    <div class="chart-container" style="height: 350px;">
+                        <canvas id="mainSpendingChart"></canvas>
+                    </div>
+                </section>
+                <section class="chart-section glass-panel" style="grid-column: 1 / -1;" id="memberAnalytics">
+                    <h3>Spending by Family Member</h3>
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="memberSpendingChart"></canvas>
+                    </div>
+                </section>
+                <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem;">
+                    <h3>Insight Report</h3>
+                    <p id="spendingInsight" class="subtitle" style="font-size: 1.1rem; line-height: 1.6; margin-top: 1rem;">Analyzing your data...</p>
+                </section>
+                <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem; border: 1px dashed var(--accent-color);">
+                    <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-brain"></i> Behavioral Intelligence</h3>
+                    <div id="behavioralHub" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="insight-card" id="recurringInsight">
+                            <h4 style="color: var(--accent-color); font-size: 0.9rem; text-transform: uppercase;">Recurring Patterns</h4>
+                            <p class="subtitle" style="font-size: 1rem;">Waiting for more data to detect cycles...</p>
+                        </div>
+                        <div class="insight-card" id="trendInsight">
+                            <h4 style="color: var(--accent-color); font-size: 0.9rem; text-transform: uppercase;">Spending Velocity</h4>
+                            <p class="subtitle" style="font-size: 1rem;">Analyzing your weekly trend...</p>
+                        </div>
+                        <div class="insight-card" id="projectionInsight">
+                            <h4 style="color: var(--accent-color); font-size: 0.9rem; text-transform: uppercase;">End-of-Month Projection</h4>
+                            <p class="subtitle" style="font-size: 1rem;">Estimating your monthly total...</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay" id="settingsModal">
+            <div class="modal glass-panel">
+                <div class="modal-header">
+                    <h2>App Settings</h2>
+                    <button class="close-btn" id="closeSettingsBtn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="settings-content">
+                    <!-- Profile Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-user"></i> Profile Settings</h3>
+                        <div class="form-group" style="text-align: left; margin-bottom: 0;">
+                            <label for="settingsNameInput">Display Name</label>
+                            <input type="text" id="settingsNameInput" placeholder="Enter your name">
+                        </div>
+                    </div>
+
+                    <!-- Budget Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-bullseye"></i> Budget Alert</h3>
+                        <div class="form-group" style="text-align: left; margin-bottom: 0;">
+                            <label for="settingsBudgetInput">Monthly Limit (Optional)</label>
+                            <input type="number" id="settingsBudgetInput" placeholder="e.g. 1000">
+                        </div>
+                    </div>
+
+                    <!-- Goal Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-piggy-bank"></i> Savings Goal</h3>
+                        <div class="form-group" style="text-align: left;">
+                            <label for="settingsGoalName">Target Name</label>
+                            <input type="text" id="settingsGoalName" placeholder="e.g. New Car">
+                        </div>
+                        <div class="form-group" style="text-align: left; margin-bottom: 0;">
+                            <label for="settingsGoalAmount">Target Amount</label>
+                            <input type="number" id="settingsGoalAmount" placeholder="e.g. 5000">
+                        </div>
+                    </div>
+
+                    <!-- Appearance Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-palette"></i> Appearance</h3>
+                        <div class="setting-item" style="border-bottom: none; padding-top: 0;">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Dark Mode</h3>
+                                <p>Switch between Dark and Light theme</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="themeToggle" checked>
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="form-group" style="text-align: left; margin-bottom: 0; margin-top: 1rem;">
+                            <label for="accentColorPicker">Branding Color</label>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <input type="color" id="accentColorPicker" value="#6366f1" style="width: 40px; height: 40px; padding: 0.2rem; border-radius: 8px; cursor: pointer;">
+                                <span style="font-size: 0.85rem; color: var(--text-secondary);">Choose your accent color</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Family Mode Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-users"></i> Family Mode</h3>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Enable Family Mode</h3>
+                                <p>Track expenses for multiple members</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="familyToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div id="familyMemberManager" style="display: none; margin-top: 1rem;">
+                            <label style="font-size: 0.9rem; color: var(--text-secondary);">Manage Family Members</label>
+                            <div class="form-group" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <input type="text" id="newMemberInput" placeholder="Add name..." style="flex: 1;">
+                                <button id="addMemberBtn" class="add-btn" style="width: auto; padding: 0 1rem; border-radius: 8px;">Add</button>
+                            </div>
+                            <ul id="memberList" style="list-style: none; margin-top: 0.5rem;"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Security Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-shield-halved"></i> App Security</h3>
+                        <div class="setting-item" style="border-bottom: none; padding-top: 0;">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Require PIN</h3>
+                                <p>Protect your data with a 4-digit PIN</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="pinToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div id="pinSetupArea" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div class="form-group" style="text-align: left; margin-bottom: 0;">
+                                <label for="newPin">Set 4-Digit PIN</label>
+                                <input type="password" id="newPin" placeholder="••••" maxlength="4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1rem;">Save All Settings</button>
+                    <div style="margin-top: 1.5rem; text-align: center;">
+                        <button id="resetAppBtn" class="btn-text" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Erase Profile & Data</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Transaction Modal -->
+        <div class="modal-overlay" id="addTransactionModal">
+            <div class="modal glass-panel">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Add New Record</h2>
+                    <button class="close-btn" id="closeModalBtn"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <button type="button" id="voiceAddBtn" class="btn-primary" style="background: rgba(255,255,255,0.1); color: var(--text-primary); width: 100%; justify-content: center; box-shadow: none;">
+                        <i class="fa-solid fa-microphone"></i> Tap & Speak (e.g. "25 for Food")
+                    </button>
+                </div>
+                <form id="transactionForm">
+                    <div class="form-group type-toggle">
+                        <input type="radio" id="typeExpense" name="type" value="expense" checked>
+                        <label for="typeExpense">Expense</label>
+                        <input type="radio" id="typeIncome" name="type" value="income">
+                        <label for="typeIncome">Income</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="amount">Amount</label>
+                        <input type="number" id="amount" placeholder="0.00" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <select id="category" required>
+                            <option value="Food">🍔 Food & Dining</option>
+                            <option value="Transport">🚗 Transportation</option>
+                            <option value="Shopping">🛍️ Shopping</option>
+                            <option value="Bills">🧾 Bills & Utilities</option>
+                            <option value="Entertainment">🎬 Entertainment</option>
+                            <option value="Salary">💰 Salary / Income</option>
+                            <option value="Other">✨ Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="memberSelectorGroup" style="display: none;">
+                        <label for="memberSelector">Paid By</label>
+                        <select id="memberSelector"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Note (Optional)</label>
+                        <input type="text" id="description" placeholder="What was this for?" autocomplete="off">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+                        <label class="switch" style="width: 40px; height: 20px;">
+                            <input type="checkbox" id="isRecurring">
+                            <span class="slider round"></span>
+                        </label>
+                        <span style="font-size: 0.9rem; color: var(--text-secondary);">Set as Recurring</span>
+                        
+                        <select id="recurringFrequency" style="flex: 1; display: none; margin-left: auto;">
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly" selected>Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary w-100" id="saveBtn">Save Transaction</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

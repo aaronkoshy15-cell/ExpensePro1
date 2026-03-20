@@ -254,17 +254,62 @@
                 
                 <!-- Quick Analytics Chart -->
                 <section class="chart-section glass-panel">
-                    <h3>Spending Overview</h3>
-                    <div class="chart-container">
-                        <canvas id="spendingChart"></canvas>
+                    <div class="section-header">
+                        <h3>Spending Overview</h3>
+                        <div class="header-actions">
+                            <div class="period-toggle">
+                                <button class="period-btn active" onclick="setChartPeriod('month', this)">Month</button>
+                                <button class="period-btn" onclick="setChartPeriod('week', this)">Week</button>
+                            </div>
+                            <span class="badge" id="budgetStatus">Budget: $0</span>
+                        </div>
+                    </div>
+                    <div class="chart-layout">
+                        <div class="chart-container">
+                            <canvas id="spendingChart"></canvas>
+                        </div>
+                        <div class="category-breakdown" id="categoryBreakdown">
+                            <!-- Injected via JS -->
+                        </div>
                     </div>
                 </section>
                 
+                <!-- Quick Insights Grid -->
+                <div class="insights-grid">
+                    <div class="insight-card glass-panel" id="db-recurring">
+                        <div class="insight-icon"><i class="fa-solid fa-rotate"></i></div>
+                        <div class="insight-content">
+                            <h4>Subscription Alert</h4>
+                            <p class="recurring-value">Analyzing patterns...</p>
+                        </div>
+                    </div>
+                    <div class="insight-card glass-panel" id="db-trend">
+                        <div class="insight-icon"><i class="fa-solid fa-chart-line"></i></div>
+                        <div class="insight-content">
+                            <h4>Spending Trend</h4>
+                            <p class="trend-value">Comparing weeks...</p>
+                        </div>
+                    </div>
+                    <div class="insight-card glass-panel" id="db-projection">
+                        <div class="insight-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                        <div class="insight-content">
+                            <h4>Month Projection</h4>
+                            <p class="projection-value">Processing forecast...</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Recent Transactions -->
                 <section class="transactions-section glass-panel">
                     <div class="section-header">
                         <h3>Recent Transactions</h3>
-                        <button class="btn-text">View All</button>
+                        <div class="header-tools">
+                            <div class="search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="transactionSearch" placeholder="Search transactions..." oninput="filterTransactions()">
+                            </div>
+                            <button class="btn-text" onclick="clearSearch()">View All</button>
+                        </div>
                     </div>
                     <ul class="transaction-list" id="transactionList">
                         <!-- Transactions injected via JS -->
@@ -407,7 +452,7 @@
                 <div class="header-text">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
                         <div>
-                            <h1>Analytics</h1>
+                            <h1 class="shimmer-text">Analytics</h1>
                             <p class="subtitle">Detailed breakdown of your spending habits.</p>
                         </div>
                         <button id="downloadPdfBtn" class="btn-primary" style="width: auto; padding: 0.8rem 1.2rem; background: var(--accent-color); font-size: 0.9rem;">
@@ -416,40 +461,122 @@
                     </div>
                 </div>
             </header>
+            <div class="analytics-stats-row">
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon-mini"><i class="fa-solid fa-calendar-day"></i></div>
+                    <span class="stat-label">Daily Average</span>
+                    <h3 id="avgDailySpend">$0</h3>
+                    <span id="avgCompare" class="stat-compare">-- vs last month</span>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon-mini"><i class="fa-solid fa-pie-chart"></i></div>
+                    <span class="stat-label">Budget Used</span>
+                    <h3 id="budgetUsedPct">0%</h3>
+                    <span id="budgetCompare" class="stat-compare">-- vs last month</span>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon-mini"><i class="fa-solid fa-rocket"></i></div>
+                    <span class="stat-label">Projected Total</span>
+                    <h3 id="analyticsProjectedTotal">$0</h3>
+                    <span id="projectedCompare" class="stat-compare">-- vs last month</span>
+                </div>
+                <div class="stat-card glass-panel" style="border: 1px solid var(--success); background: rgba(16, 185, 129, 0.05);">
+                    <div class="stat-icon-mini" style="background: var(--success);"><i class="fa-solid fa-shield-halved"></i></div>
+                    <span class="stat-label">Safe to Spend Today</span>
+                    <h3 id="dailySafeSpend">$0</h3>
+                    <span class="stat-compare">Daily allowance</span>
+                </div>
+            </div>
+
+            <!-- Confetti Script -->
+            <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
             <div class="dashboard-grid">
-                <section class="chart-section glass-panel" style="grid-column: 1 / -1;">
-                    <h3>Spending by Category</h3>
-                    <div class="chart-container" style="height: 350px;">
-                        <canvas id="mainSpendingChart"></canvas>
+                <!-- Bar 2: Insights & Health (Immediate Actionable Summary) -->
+                <div class="analytics-row">
+                    <section class="glass-panel" style="padding: 1.5rem;">
+                        <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-brain"></i> Insight Report</h3>
+                        <p id="spendingInsight" class="subtitle" style="font-size: 0.95rem; line-height: 1.5; margin-top: 1rem;">Analyzing your data for actionable patterns...</p>
+                    </section>
+                    <section class="glass-panel" style="padding: 1.5rem;">
+                        <h3 style="margin-bottom: 1.5rem;">Fiscal Health Score</h3>
+                        <div class="health-gauge-container">
+                            <canvas id="healthScoreGauge"></canvas>
+                            <div class="health-value-overlay">
+                                <span id="healthScoreValue">--</span>
+                                <small>Health Score</small>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Bar 3: Trends & Categories (Visual Analysis) -->
+                <div class="analytics-row" style="grid-template-columns: 1fr 1fr;">
+                    <!-- Spending Trend Line Chart -->
+                    <section class="chart-section glass-panel" style="margin: 0;">
+                        <h3>Monthly Spending Trend</h3>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="trendSpendingChart"></canvas>
+                        </div>
+                    </section>
+
+                    <section class="chart-section glass-panel" style="margin: 0;">
+                        <div class="section-header">
+                            <h3 style="margin-bottom: 0;">By Category</h3>
+                            <div class="header-actions">
+                                <div class="period-toggle" style="transform: scale(0.85); transform-origin: right;">
+                                    <button class="period-btn active" onclick="toggleCategoryChartType('doughnut', this)">Doughnut</button>
+                                    <button class="period-btn" onclick="toggleCategoryChartType('polarArea', this)">Polar</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-layout">
+                            <div class="chart-container" style="height: 200px; flex: 1;">
+                                <canvas id="mainSpendingChart"></canvas>
+                            </div>
+                            <div class="category-breakdown" id="analyticsCategoryBreakdown">
+                                <!-- Injected via JS -->
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Full Width Stem: Detailed Data -->
+                <section class="glass-panel" style="grid-column: 1 / -1; padding: 1.5rem;">
+                    <h3 style="margin-bottom: 1.5rem;">Top Monthly Expenses</h3>
+                    <div class="table-responsive">
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topExpensesList">
+                                <!-- Injected via JS -->
+                            </tbody>
+                        </table>
                     </div>
                 </section>
-                <section class="chart-section glass-panel" style="grid-column: 1 / -1;" id="memberAnalytics">
-                    <h3>Spending by Family Member</h3>
-                    <div class="chart-container" style="height: 300px;">
-                        <canvas id="memberSpendingChart"></canvas>
-                    </div>
-                </section>
-                <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem;">
-                    <h3>Insight Report</h3>
-                    <p id="spendingInsight" class="subtitle" style="font-size: 1.1rem; line-height: 1.6; margin-top: 1rem;">Analyzing your data...</p>
-                </section>
-                <section class="glass-panel" style="grid-column: 1 / -1; padding: 2rem; border: 1px dashed var(--accent-color);">
-                    <h3 style="display: flex; align-items: center; gap: 0.5rem;"><i class="fa-solid fa-brain"></i> Behavioral Intelligence</h3>
-                    <div id="behavioralHub" style="margin-top: 1rem; display: flex; flex-direction: column; gap: 1rem;">
-                        <div class="insight-card" id="recurringInsight">
-                            <h4 style="color: var(--accent-color); font-size: 0.9rem; text-transform: uppercase;">Recurring Patterns</h4>
-                            <p class="subtitle" style="font-size: 1rem;">Waiting for more data to detect cycles...</p>
+
+                <!-- Support Row: Deep Dives -->
+                <div class="analytics-row">
+                    <section class="glass-panel" style="padding: 1.5rem;">
+                        <h3 style="margin-bottom: 1.5rem;">Spending Intensity (Heatmap)</h3>
+                        <div id="spendingHeatmap" class="heatmap-grid">
+                            <!-- Injected via JS -->
                         </div>
-                        <div class="insight-card" id="trendInsight">
-                            <h4 style="color: var(--accent-color); font-size: 0.9rem; text-transform: uppercase;">Spending Velocity</h4>
-                            <p class="subtitle" style="font-size: 1rem;">Analyzing your weekly trend...</p>
+                    </section>
+                    <section class="chart-section glass-panel" id="memberAnalytics" style="padding: 1.5rem; margin: 0;">
+                        <h3>Spending by Family Member</h3>
+                        <div class="chart-container" style="height: 180px;">
+                            <canvas id="memberSpendingChart"></canvas>
                         </div>
-                        <div class="insight-card" id="projectionInsight">
-                            <h4 style="color: var(--accent-color); font-size: 0.9rem; text-transform: uppercase;">End-of-Month Projection</h4>
-                            <p class="subtitle" style="font-size: 1rem;">Estimating your monthly total...</p>
-                        </div>
-                    </div>
-                </section>
+                    </section>
+                </div>
+
             </div>
         </main>
 

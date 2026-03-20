@@ -205,12 +205,29 @@ function playSound(type) {
     }
 }
 
+function showButtonSuccess(btn, originalHtml) {
+    btn.classList.remove('loading');
+    btn.classList.add('success');
+    btn.innerHTML = '&nbsp;'; // Space for the pseudo-element checkmark
+    
+    playSound('success');
+    triggerHaptic(50);
+
+    setTimeout(() => {
+        btn.classList.remove('success');
+        btn.innerHTML = originalHtml;
+    }, 1500);
+}
+
 // Global Click Listener for Haptics & Sound
 document.addEventListener('click', (e) => {
     const target = e.target.closest('button, a, .num-btn, .nav-links li, .lock-dot');
     if (target) {
         triggerHaptic(15);
         if (target.classList.contains('num-btn')) {
+            playSound('click');
+        } else if (!target.classList.contains('active')) {
+            // General click sound for interactive elements
             playSound('click');
         }
     }
@@ -553,6 +570,8 @@ window.revokeDevice = function(id) {
     if (!confirm('Sign out and remove this device from login history?')) return;
     let devices = getDevices().filter(d => d.id !== id);
     localStorage.setItem(DEVICES_KEY, JSON.stringify(devices));
+    triggerHaptic(25);
+    playSound('success');
     renderDeviceList();
 };
 
@@ -567,6 +586,8 @@ window.signOutAllOtherDevices = function() {
     if (!confirm('Sign out of all other devices? This device will remain active.')) return;
     let devices = getDevices().filter(d => d.isCurrent);
     localStorage.setItem(DEVICES_KEY, JSON.stringify(devices));
+    triggerHaptic(30);
+    playSound('success');
     renderDeviceList();
     // Flash security strip green
     const strip = document.getElementById('dvSecurityStrip');
@@ -1094,56 +1115,142 @@ function animateValue(obj, targetValue, formatter) {
     requestAnimationFrame(update);
 }
 
+window.filterTransactions = function() {
+    renderTransactions();
+};
+
+window.clearSearch = function() {
+    const searchInput = document.getElementById('transactionSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        renderTransactions();
+    }
+};
+
 function renderTransactions() {
+    const searchTerm = document.getElementById('transactionSearch')?.value.toLowerCase() || '';
     transactionListEl.innerHTML = '';
     
-    if (transactions.length === 0) {
-        transactionListEl.innerHTML = '<div class="empty-state">No transactions yet. Add one!</div>';
+    let filteredTransactions = transactions;
+    if (searchTerm) {
+        filteredTransactions = transactions.filter(t => 
+            t.description.toLowerCase().includes(searchTerm) || 
+            t.category.toLowerCase().includes(searchTerm) ||
+            t.amount.toString().includes(searchTerm)
+        );
+    }
+
+    if (filteredTransactions.length === 0) {
+        transactionListEl.innerHTML = searchTerm 
+            ? '<div class="empty-state">No transactions match your search.</div>'
+            : '<div class="empty-state">No transactions yet. Add one!</div>';
         return;
     }
     
     // Sort by date newest first
-    const sorted = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sorted = [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
     
+    // Grouping logic
+    const groups = {};
+    const today = new Date().toLocaleDateString();
+    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
+
+    sorted.forEach(t => {
+        const date = new Date(t.date).toLocaleDateString();
+        let groupLabel = date;
+        if (date === today) groupLabel = 'Today';
+        else if (date === yesterday) groupLabel = 'Yesterday';
+        
+        if (!groups[groupLabel]) groups[groupLabel] = [];
+        groups[groupLabel].push(t);
+    });
+
     // Calculate average for spike detection
     const expenses = transactions.filter(t => t.type === 'expense');
     const avgExpense = expenses.length > 0 ? expenses.reduce((acc, curr) => acc + curr.amount, 0) / expenses.length : 0;
     const now = new Date().getTime();
 
-    sorted.forEach(t => {
-        const li = document.createElement('li');
-        li.className = 'transaction-item';
-        
-        // Smart Highlights
-        const isNew = (now - new Date(t.date).getTime()) < 3000;
-        const isSpike = t.type === 'expense' && t.amount > (avgExpense * 1.5) && expenses.length >= 3;
-        
-        if (isNew) li.classList.add('highlight-new');
-        if (isSpike) li.classList.add('spike');
+    Object.keys(groups).forEach(label => {
+        // Add Date Header
+        const header = document.createElement('div');
+        header.className = 'date-group-header';
+        header.innerHTML = `<span>${label}</span> <span class="date-group-count">${groups[label].length} items</span>`;
+        transactionListEl.appendChild(header);
 
-        const catInfo = categoryIcons[t.category] || categoryIcons['Other'];
-        const amountClass = t.type === 'income' ? 'income' : 'expense';
-        const sign = t.type === 'income' ? '+' : '-';
-        
-        const dateStr = new Date(t.date).toLocaleDateString();
-        
-        li.innerHTML = `
-            <div class="t-icon ${catInfo.class}">
-                <i class="fa-solid ${catInfo.icon}"></i>
-            </div>
-            <div class="t-info">
-                <div class="t-title">${t.description} ${isSpike ? '<span class="spike-tag">Spike</span>' : ''}</div>
-                <div class="t-date">${dateStr} • ${t.category}${isFamilyMode ? ' • ' + (t.member || 'Me') : ''}</div>
-            </div>
-            <div class="t-amount ${amountClass}">
-                ${sign} ${new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(t.amount)}
-            </div>
-            <button class="delete-btn" onclick="deleteTransaction('${t.id}')">
-                <i class="fa-solid fa-trash"></i>
-            </button>
-        `;
-        transactionListEl.appendChild(li);
+        groups[label].forEach(t => {
+            const li = document.createElement('li');
+            li.className = 'transaction-item';
+            
+            const isNew = (now - new Date(t.date).getTime()) < 3000;
+            const isSpike = t.type === 'expense' && t.amount > (avgExpense * 1.5) && expenses.length >= 3;
+            
+            if (isNew) li.classList.add('highlight-new');
+            if (isSpike) li.classList.add('spike');
+
+            const catInfo = categoryIcons[t.category] || categoryIcons['Other'];
+            const amountClass = t.type === 'income' ? 'income' : 'expense';
+            const sign = t.type === 'income' ? '+' : '-';
+            
+            const timeStr = new Date(t.date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            
+            li.innerHTML = `
+                <div class="t-icon ${catInfo.class}">
+                    <i class="fa-solid ${catInfo.icon}"></i>
+                </div>
+                <div class="t-info">
+                    <div class="t-title">${t.description} ${isSpike ? '<span class="spike-tag">Spike</span>' : ''}</div>
+                    <div class="t-date">${timeStr} • ${t.category}${isFamilyMode ? ' • ' + (t.member || 'Me') : ''}</div>
+                </div>
+                <div class="t-amount ${amountClass}">
+                    ${sign}${new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(t.amount)}
+                </div>
+                <div class="t-actions">
+                    <button class="action-icon-btn edit-btn" onclick="openEditTransactionModal('${t.id}')" title="Edit">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button class="action-icon-btn delete-btn" onclick="deleteTransaction('${t.id}')" title="Delete">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            transactionListEl.appendChild(li);
+        });
     });
+}
+
+function openEditTransactionModal(id) {
+    const t = transactions.find(item => item.id === id);
+    if (!t) return;
+    
+    editingId = id;
+    modalOverlay.style.display = 'flex';
+    modalOverlay.classList.add('active');
+    
+    document.getElementById('modalTitle').innerText = 'Edit Transaction';
+    document.getElementById('saveBtn').innerText = 'Update Transaction';
+    
+    document.getElementById('amount').value = t.amount;
+    document.getElementById('category').value = t.category;
+    document.getElementById('description').value = t.description;
+    
+    if (t.type === 'income') {
+        document.getElementById('typeIncome').checked = true;
+    } else {
+        document.getElementById('typeExpense').checked = true;
+    }
+
+    if (isFamilyMode && t.member) {
+        memberSelector.value = t.member;
+    }
+    
+    if (t.isRecurring) {
+        isRecurringToggle.checked = true;
+        recurringFrequencySelect.style.display = 'block';
+        recurringFrequencySelect.value = t.frequency;
+    } else {
+        isRecurringToggle.checked = false;
+        recurringFrequencySelect.style.display = 'none';
+    }
 }
 
 // Modal Helper
@@ -1157,28 +1264,7 @@ function openModal() {
 }
 
 function openEditModal(id) {
-    const t = transactions.find(item => item.id === id);
-    if (!t) return;
-    
-    editingId = id;
-    modalOverlay.style.display = 'flex';
-    modalOverlay.classList.add('active');
-    
-    document.getElementById('modalTitle').innerText = 'Edit Subscription';
-    document.getElementById('saveBtn').innerText = 'Update Changes';
-    
-    document.getElementById('amount').value = t.amount;
-    document.getElementById('category').value = t.category;
-    document.getElementById('description').value = t.description;
-    
-    if (t.isRecurring) {
-        isRecurringToggle.checked = true;
-        recurringFrequencySelect.style.display = 'block';
-        recurringFrequencySelect.value = t.frequency;
-    } else {
-        isRecurringToggle.checked = false;
-        recurringFrequencySelect.style.display = 'none';
-    }
+    openEditTransactionModal(id);
 }
 
 function deleteTransaction(id) {
@@ -1208,62 +1294,80 @@ function addTransaction(e) {
     // Fallback if description is empty
     const finalDescription = description.trim() || category;
     
-    if (editingId) {
-        const index = transactions.findIndex(t => t.id === editingId);
-        if (index !== -1) {
-            transactions[index] = {
-                ...transactions[index],
+    const saveBtn = document.getElementById('saveBtn');
+    const originalHtml = saveBtn.innerHTML;
+    saveBtn.classList.add('loading');
+
+    setTimeout(() => {
+        if (editingId) {
+            const index = transactions.findIndex(t => t.id === editingId);
+            if (index !== -1) {
+                transactions[index] = {
+                    ...transactions[index],
+                    type,
+                    amount,
+                    category,
+                    description: finalDescription,
+                    isRecurring: isRecurringToggle?.checked || false,
+                    frequency: isRecurringToggle?.checked ? recurringFrequencySelect.value : null
+                };
+            }
+        } else {
+            // Duplicate Check (omitted for brevity in this chunk, keeping original logic)
+            const isDuplicate = transactions.find(t => 
+                t.description.toLowerCase() === finalDescription.toLowerCase() &&
+                t.amount === amount &&
+                t.type === type &&
+                t.category === category &&
+                (new Date() - new Date(t.date)) < 24 * 60 * 60 * 1000
+            );
+
+            if (isDuplicate) {
+                const formatted = new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(amount);
+                if (!confirm(`Warning: A similar ${type} ("${finalDescription}" for ${formatted}) was already added in the last 24 hours. Add it anyway?`)) {
+                    saveBtn.classList.remove('loading');
+                    return;
+                }
+            }
+
+            const newTransaction = {
+                id: Date.now().toString(),
                 type,
                 amount,
                 category,
                 description: finalDescription,
+                member: isFamilyMode ? memberSelector.value : 'Me',
                 isRecurring: isRecurringToggle?.checked || false,
-                frequency: isRecurringToggle?.checked ? recurringFrequencySelect.value : null
+                frequency: isRecurringToggle?.checked ? recurringFrequencySelect.value : null,
+                lastProcessed: isRecurringToggle?.checked ? new Date().toISOString() : null,
+                date: new Date().toISOString()
             };
+            transactions.push(newTransaction);
         }
-    } else {
-        // Duplicate Check
-        const isDuplicate = transactions.find(t => 
-            t.description.toLowerCase() === finalDescription.toLowerCase() &&
-            t.amount === amount &&
-            t.type === type &&
-            t.category === category &&
-            (new Date() - new Date(t.date)) < 24 * 60 * 60 * 1000
-        );
+        
+        showButtonSuccess(saveBtn, originalHtml);
+        
+        setTimeout(() => {
+            transactionForm.reset();
+            editingId = null;
+            document.getElementById('typeExpense').checked = true;
+            modalOverlay.classList.remove('active');
+            window.clearSearch();
+            updateUI();
+            if (subscriptionsView.style.display !== 'none') renderSubscriptions();
+        }, 500);
+    }, 600);
+}
 
-        if (isDuplicate) {
-            const formatted = new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(amount);
-            if (!confirm(`Warning: A similar ${type} ("${finalDescription}" for ${formatted}) was already added in the last 24 hours. Add it anyway?`)) {
-                return;
-            }
-        }
-
-        const newTransaction = {
-            id: Date.now().toString(),
-            type,
-            amount,
-            category,
-            description: finalDescription,
-            member: isFamilyMode ? memberSelector.value : 'Me',
-            isRecurring: isRecurringToggle?.checked || false,
-            frequency: isRecurringToggle?.checked ? recurringFrequencySelect.value : null,
-            lastProcessed: isRecurringToggle?.checked ? new Date().toISOString() : null,
-            date: new Date().toISOString()
-        };
-        transactions.push(newTransaction);
-    }
-    
-    // Reset form and close modal
-    transactionForm.reset();
-    editingId = null;
-    document.getElementById('typeExpense').checked = true; // reset to expense default
-    closeModalBtn.click();
-    
-    triggerHaptic(20);
-    playSound('success');
-
-    updateUI();
-    if (subscriptionsView.style.display !== 'none') renderSubscriptions();
+/**
+ * Creates a linear gradient for Chart.js
+ */
+function createChartGradient(ctx, color, opacityStart = 0.4, opacityEnd = 0) {
+    if (!ctx) return color;
+    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+    gradient.addColorStop(0, color.replace('1)', `${opacityStart})`).replace('rgb', 'rgba'));
+    gradient.addColorStop(1, color.replace('1)', `${opacityEnd})`).replace('rgb', 'rgba'));
+    return gradient;
 }
 
 function updateChart() {
@@ -1275,25 +1379,45 @@ function updateChart() {
     // 1. Spending by Category
     const expensesByCategory = {};
     const expensesByMember = {};
+    const now = new Date();
+    const isWeek = typeof currentChartPeriod !== 'undefined' && currentChartPeriod === 'week';
     
     transactions.forEach(t => {
         if (t.type === 'expense') {
-            expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + t.amount;
-            if (isFamilyMode) {
-                const m = t.member || 'Me';
-                expensesByMember[m] = (expensesByMember[m] || 0) + t.amount;
+            const tDate = new Date(t.date);
+            let include = true;
+            
+            if (isWeek) {
+                const diffTime = Math.abs(now - tDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays > 7) include = false;
+            } else {
+                // Default to current month
+                if (tDate.getMonth() !== now.getMonth() || tDate.getFullYear() !== now.getFullYear()) {
+                    include = false;
+                }
+            }
+            
+            if (include) {
+                expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + t.amount;
+                if (isFamilyMode) {
+                    const m = t.member || 'Me';
+                    expensesByMember[m] = (expensesByMember[m] || 0) + t.amount;
+                }
             }
         }
     });
     
     const labels = Object.keys(expensesByCategory);
     const data = Object.values(expensesByCategory);
-    
+
     // Member chart logic
     if (isFamilyMode && memberCtx) {
         if (memberChartInstance) memberChartInstance.destroy();
         const mLabels = Object.keys(expensesByMember);
         const mData = Object.values(expensesByMember);
+        const ctx = memberCtx.getContext('2d');
+        const gradient = createChartGradient(ctx, 'rgba(99, 102, 241, 1)', 0.6, 0.1);
         
         memberChartInstance = new Chart(memberCtx, {
             type: 'bar',
@@ -1302,10 +1426,11 @@ function updateChart() {
                 datasets: [{
                     label: 'Spending per Member',
                     data: mData,
-                    backgroundColor: 'rgba(99, 102, 241, 0.6)',
-                    borderColor: 'var(--accent-color)',
-                    borderWidth: 1,
-                    borderRadius: 8
+                    backgroundColor: gradient,
+                    borderColor: 'rgba(99, 102, 241, 1)',
+                    borderWidth: 1.5,
+                    borderRadius: 8,
+                    maxBarThickness: 40
                 }]
             },
             options: {
@@ -1314,16 +1439,24 @@ function updateChart() {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: 'var(--text-secondary)' }
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: { color: 'var(--text-secondary)', font: { family: 'Outfit', size: 11 } }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { color: 'var(--text-secondary)' }
+                        ticks: { color: 'var(--text-secondary)', font: { family: 'Outfit', size: 12 } }
                     }
                 },
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleFont: { family: 'Outfit', size: 13 },
+                        bodyFont: { family: 'Outfit', size: 13 },
+                        padding: 12,
+                        cornerRadius: 10,
+                        displayColors: false
+                    }
                 }
             }
         });
@@ -1332,52 +1465,468 @@ function updateChart() {
     // 4. Behavioral Intelligence
     updateBehavioralInsights();
 
-    // Generate Insights
-    const insightEl = document.getElementById('spendingInsight');
-    if (insightEl) {
-        if (labels.length === 0) {
-            insightEl.innerText = "No data yet. Start tracking to see your financial health here!";
+    // Update Budget Status Badge
+    const budgetStatus = document.getElementById('budgetStatus');
+    if (budgetStatus) {
+        const totalExp = data.reduce((a, b) => a + b, 0);
+        if (monthlyBudget > 0) {
+            const remaining = monthlyBudget - totalExp;
+            budgetStatus.innerText = `Remaining: ${formatCurrency(remaining)}`;
+            budgetStatus.className = remaining < 0 ? 'badge danger' : (remaining < monthlyBudget * 0.2 ? 'badge warning' : 'badge');
         } else {
-            const maxVal = Math.max(...data);
-            const topCategory = labels[data.indexOf(maxVal)];
-            const totalExp = data.reduce((a, b) => a + b, 0);
-            const percentage = ((maxVal / totalExp) * 100).toFixed(1);
-            
-            insightEl.innerHTML = `Your biggest expense is <strong>${topCategory}</strong>, which makes up <strong>${percentage}%</strong> of your monthly spending. ${percentage > 50 ? "Consider reviewing this category to save more." : "Your spending is relatively balanced across categories."}`;
+            budgetStatus.innerText = 'Budget not set';
+            budgetStatus.className = 'badge';
         }
     }
+    
+    // Generate Category Breakdown List (Dashboard & Analytics)
+    const breakdownContainers = [
+        document.getElementById('categoryBreakdown'),
+        document.getElementById('analyticsCategoryBreakdown')
+    ];
+    
+    breakdownContainers.forEach(el => {
+        if (!el) return;
+        el.innerHTML = '';
+        const totalExp = data.reduce((a, b) => a + b, 0);
+        
+        labels.forEach((label, i) => {
+            const amount = data[i];
+            const pct = totalExp > 0 ? (amount / totalExp * 100).toFixed(0) : 0;
+            const color = colors[i % colors.length];
+            const item = document.createElement('div');
+            item.className = 'breakdown-item';
+            item.setAttribute('role', 'button');
+            item.setAttribute('title', `Click to filter tasks by ${label}`);
+            item.onclick = () => filterByCategory(label);
+            
+            // Hover highlighting for chart
+            item.onmouseenter = () => {
+                if (chartInstance && targetCtx === mainCtx) {
+                    chartInstance.setActiveElements([{ datasetIndex: 0, index: i }]);
+                    chartInstance.update();
+                }
+            };
+            item.onmouseleave = () => {
+                if (chartInstance && targetCtx === mainCtx) {
+                    chartInstance.setActiveElements([]);
+                    chartInstance.update();
+                }
+            };
+
+            item.innerHTML = `
+                <div class="breakdown-info">
+                    <span class="breakdown-name">${label}</span>
+                    <span class="breakdown-value">${formatCurrency(amount)} (${pct}%)</span>
+                </div>
+                <div class="breakdown-bar-container">
+                    <div class="breakdown-bar" style="width: ${pct}%; background: ${color}"></div>
+                </div>
+            `;
+            el.appendChild(item);
+        });
+    });
+
+    // Update Detailed Insight Report
+    updateDetailedInsights(labels, data, totalExp);
+
+    const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444'];
 
     if (chartInstance) {
         chartInstance.destroy();
     }
-    
-    const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444'];
-    
+
     // Render on whichever is active
     const targetCtx = mainCtx && analyticsView.style.display !== 'none' ? mainCtx : dashboardCtx;
     if (!targetCtx) return;
 
     chartInstance = new Chart(targetCtx, {
-        type: 'doughnut',
+        type: categoryChartType || 'doughnut',
         data: {
             labels: labels.length > 0 ? labels : ['No Data'],
             datasets: [{
                 data: data.length > 0 ? data : [1],
                 backgroundColor: data.length > 0 ? colors : ['#334155'],
                 borderWidth: 0,
-                hoverOffset: 4
+                hoverOffset: 15,
+                weight: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                animateScale: true,
+                animateRotate: true
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    titleFont: { family: 'Outfit', size: 14 },
+                    bodyFont: { family: 'Outfit', size: 14 },
+                    padding: 15,
+                    cornerRadius: 12,
+                    displayColors: true,
+                    boxPadding: 6
+                }
+            },
+            cutout: '75%'
+        }
+    });
+
+    // 5. Monthly Spending Trend (Line Chart)
+    const trendCtxEl = document.getElementById('trendSpendingChart');
+    if (trendCtxEl) {
+        if (window.trendChartInstance) window.trendChartInstance.destroy();
+        
+        const now = new Date();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const dailyData = new Array(daysInMonth).fill(0);
+        
+        transactions.forEach(t => {
+            const d = new Date(t.date);
+            if (t.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+                dailyData[d.getDate() - 1] += t.amount;
+            }
+        });
+
+        let cumulative = 0;
+        const cumulativeData = dailyData.map(val => {
+            cumulative += val;
+            return cumulative;
+        });
+
+        const ctxLine = trendCtxEl.getContext('2d');
+        const lineGradient = createChartGradient(ctxLine, 'rgba(99, 102, 241, 1)', 0.4, 0.05);
+
+        window.trendChartInstance = new Chart(trendCtxEl, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: daysInMonth}, (_, i) => i + 1),
+                datasets: [{
+                    label: 'Spent To Date',
+                    data: cumulativeData,
+                    borderColor: '#6366f1',
+                    backgroundColor: lineGradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointBackgroundColor: '#6366f1',
+                    pointBorderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
+                        ticks: { color: 'var(--text-secondary)', font: { size: 10 } }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: 'var(--text-secondary)', font: { size: 10 }, maxRotation: 0 }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        padding: 12,
+                        cornerRadius: 10,
+                        titleFont: { size: 12 },
+                        bodyFont: { size: 13, weight: '600' }
+                    }
+                }
+            }
+        });
+    }
+
+    // 6. Analytics Stats Overview
+    updateAnalyticsStats();
+}
+
+function updateDetailedInsights(labels, data, total) {
+    const insightEl = document.getElementById('spendingInsight');
+    if (!insightEl || labels.length === 0) return;
+
+    const maxIdx = data.indexOf(Math.max(...data));
+    const topCat = labels[maxIdx];
+    const topPct = ((data[maxIdx] / total) * 100).toFixed(0);
+    
+    let advice = `Your top spending category is <strong>${topCat}</strong>, accounting for <strong>${topPct}%</strong> of your monthly expenses. `;
+    
+    if (topPct > 40) {
+        advice += `This is a significant portion. Consider reviewing your ${topCat} habits to find potential savings. `;
+    } else {
+        advice += `Your spending is relatively well-distributed across categories. `;
+    }
+
+    if (monthlyBudget > 0) {
+        const remaining = monthlyBudget - total;
+        if (remaining > 0) {
+            advice += `You have <strong>${formatCurrency(remaining)}</strong> left in your budget. `;
+        } else {
+            advice += `You are <strong>${formatCurrency(Math.abs(remaining))}</strong> over your budget. `;
+        }
+    }
+
+    insightEl.innerHTML = advice;
+}
+
+let currentChartPeriod = 'month';
+
+function setChartPeriod(period, btn) {
+    currentChartPeriod = period;
+    
+    // Update UI
+    const btns = btn.parentElement.querySelectorAll('.period-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    updateChart();
+}
+
+function filterByCategory(category) {
+    const searchInput = document.getElementById('transactionSearch');
+    if (searchInput) {
+        searchInput.value = category;
+        filterTransactions();
+        // Scroll to transactions
+        const tSection = document.querySelector('.transactions-section');
+        if (tSection) tSection.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/**
+ * Updates the high-level stats in the Analytics view
+ */
+function updateAnalyticsStats() {
+    const avgEl = document.getElementById('avgDailySpend');
+    const usedPctEl = document.getElementById('budgetUsedPct');
+    const projectedEl = document.getElementById('analyticsProjectedTotal');
+    
+    if (!avgEl || !usedPctEl || !projectedEl) return;
+
+    const now = new Date();
+    const currentMonthExpenses = transactions.filter(t => {
+        const d = new Date(t.date);
+        return t.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+
+    const totalThisMonth = currentMonthExpenses.reduce((sum, t) => sum + t.amount, 0);
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+    // Daily Average
+    const avg = dayOfMonth > 0 ? totalThisMonth / dayOfMonth : 0;
+    avgEl.innerText = formatCurrency(avg);
+
+    // Budget Used %
+    if (monthlyBudget > 0) {
+        const pct = ((totalThisMonth / monthlyBudget) * 100).toFixed(0);
+        usedPctEl.innerText = `${pct}%`;
+        usedPctEl.style.color = pct > 100 ? 'var(--danger)' : (pct > 80 ? 'var(--warning)' : 'var(--text-primary)');
+    } else {
+        usedPctEl.innerText = 'N/A';
+    }
+
+    // Projected Total
+    const projected = dayOfMonth > 0 ? (totalThisMonth / dayOfMonth) * daysInMonth : 0;
+    projectedEl.innerText = formatCurrency(projected);
+
+    // DAILY SAFE SPEND (COOL FEATURE)
+    const safeSpendEl = document.getElementById('dailySafeSpend');
+    if (safeSpendEl) {
+        const remainingDays = daysInMonth - dayOfMonth + 1;
+        const remainingBudget = monthlyBudget - totalThisMonth;
+        const dailyAllowance = remainingBudget > 0 ? remainingBudget / remainingDays : 0;
+        safeSpendEl.innerText = formatCurrency(dailyAllowance);
+        
+        // Success Confetti if doing great!
+        if (totalThisMonth < monthlyBudget * 0.5 && dayOfMonth > 15) {
+            triggerSuccessConfetti();
+        }
+    }
+
+    // Historical Comparisons
+    updateComparisons(totalThisMonth, avg, projected);
+
+    // Update Analytics View extra components
+    renderSpendingHeatmap();
+    renderTopExpenses();
+    renderHealthGauge(totalThisMonth);
+}
+
+function triggerSuccessConfetti() {
+    if (typeof confetti === 'function') {
+        confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#6366f1', '#10b981', '#f59e0b']
+        });
+    }
+}
+
+function updateComparisons(totalThis, avgThis, projectedThis) {
+    const avgCompareEl = document.getElementById('avgCompare');
+    const budgetCompareEl = document.getElementById('budgetCompare');
+    const projectedCompareEl = document.getElementById('projectedCompare');
+    
+    if (!avgCompareEl) return;
+
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthTransactions = transactions.filter(t => {
+        const d = new Date(t.date);
+        return t.type === 'expense' && d.getMonth() === lastMonth.getMonth() && d.getFullYear() === lastMonth.getFullYear();
+    });
+
+    const totalLast = lastMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const daysLast = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0).getDate();
+    const avgLast = totalLast / daysLast;
+
+    const updateLabel = (el, valThis, valLast) => {
+        if (valLast <= 0) {
+            el.innerText = 'No data for last month';
+            return;
+        }
+        const diff = ((valThis - valLast) / valLast) * 100;
+        const absDiff = Math.abs(diff).toFixed(1);
+        const icon = diff > 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+        const colorClass = diff > 0 ? 'trend-up' : 'trend-down';
+        
+        el.className = `stat-compare ${colorClass}`;
+        el.innerHTML = `<i class="fa-solid ${icon}"></i> ${absDiff}% vs last month`;
+    };
+
+    updateLabel(avgCompareEl, avgThis, avgLast);
+    updateLabel(projectedCompareEl, projectedThis, totalLast);
+    
+    // Budget used compare is different (vs budget, not vs last month normally, but let's show vs last month total)
+    if (totalLast > 0) {
+        const diff = ((totalThis - totalLast) / totalLast) * 100;
+        budgetCompareEl.className = `stat-compare ${diff > 0 ? 'trend-up' : 'trend-down'}`;
+        budgetCompareEl.innerHTML = `<i class="fa-solid ${diff > 0 ? 'fa-arrow-up' : 'fa-arrow-down'}"></i> ${Math.abs(diff).toFixed(1)}% spend change`;
+    }
+}
+
+let categoryChartType = 'doughnut';
+let healthChartInstance = null;
+
+window.toggleCategoryChartType = function(type, btn) {
+    categoryChartType = type;
+    const btns = btn.parentElement.querySelectorAll('.period-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateChart();
+}
+
+function renderSpendingHeatmap() {
+    const container = document.getElementById('spendingHeatmap');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    
+    // Calculate daily totals for intensity mapping
+    const dailyTotals = new Array(daysInMonth).fill(0);
+    transactions.forEach(t => {
+        const d = new Date(t.date);
+        if (t.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) {
+            dailyTotals[d.getDate() - 1] += t.amount;
+        }
+    });
+    
+    const maxDayTotal = Math.max(...dailyTotals, 1);
+    
+    for (let i = 1; i <= daysInMonth; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'heatmap-cell';
+        cell.setAttribute('data-day', i);
+        
+        const dayTotal = dailyTotals[i - 1];
+        const intensity = dayTotal / maxDayTotal;
+        
+        if (dayTotal > 0) {
+            cell.style.background = `rgba(99, 102, 241, ${0.1 + intensity * 0.9})`;
+            cell.title = `Day ${i}: ${formatCurrency(dayTotal)}`;
+            if (intensity > 0.7) cell.style.boxShadow = `0 0 10px rgba(99, 102, 241, 0.4)`;
+        }
+        
+        container.appendChild(cell);
+    }
+}
+
+function renderTopExpenses() {
+    const list = document.getElementById('topExpensesList');
+    if (!list) return;
+    
+    const now = new Date();
+    const monthExpenses = transactions.filter(t => {
+        const d = new Date(t.date);
+        return t.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    
+    const top5 = [...monthExpenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
+    
+    list.innerHTML = top5.map(t => `
+        <tr>
+            <td><span style="font-weight:500;">${t.description}</span></td>
+            <td><span class="table-category-tag">${t.category}</span></td>
+            <td><span class="table-amount">${formatCurrency(t.amount)}</span></td>
+            <td><span style="color:var(--text-secondary);font-size:0.8rem;">${new Date(t.date).toLocaleDateString()}</span></td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-secondary);">No expenses recorded this month.</td></tr>';
+}
+
+function renderHealthGauge(spent) {
+    const canvas = document.getElementById('healthScoreGauge');
+    const valueEl = document.getElementById('healthScoreValue');
+    if (!canvas || !valueEl) return;
+    
+    if (healthChartInstance) healthChartInstance.destroy();
+    
+    let score = 0;
+    if (monthlyBudget > 0) {
+        score = Math.max(0, Math.min(100, (1 - (spent / monthlyBudget)) * 100)).toFixed(0);
+    } else {
+        score = 100; // No budget = infinite health? Let's say 100.
+    }
+    
+    valueEl.innerText = `${score}%`;
+    const scoreColor = score > 70 ? '#10b981' : (score > 40 ? '#f59e0b' : '#ef4444');
+    valueEl.style.color = scoreColor;
+
+    healthChartInstance = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [score, 100 - score],
+                backgroundColor: [scoreColor, 'rgba(255,255,255,0.05)'],
+                borderWidth: 0,
+                circumference: 270,
+                rotation: 225,
+                cutout: '85%',
+                borderRadius: 10
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    position: 'right',
-                    labels: { color: '#e2e8f0', font: { family: 'Outfit' } }
-                }
-            },
-            cutout: '70%'
+                legend: { display: false },
+                tooltip: { enabled: false }
+            }
         }
     });
 }
@@ -1526,19 +2075,28 @@ if (saveSettingsBtn) {
             localStorage.setItem('familyMembers', JSON.stringify(familyMembers));
         }
 
-        // Save Feedback Settings
-        if (hapticToggle) {
-            isHapticsEnabled = hapticToggle.checked;
-            localStorage.setItem('isHapticsEnabled', isHapticsEnabled);
-        }
-        if (soundToggle) {
-            isSoundEnabled = soundToggle.checked;
-            localStorage.setItem('isSoundEnabled', isSoundEnabled);
-        }
+        const originalHtml = saveSettingsBtn.innerHTML;
+        saveSettingsBtn.classList.add('loading');
 
-        applyTheme();
-        updateUI();
-        settingsModal.classList.remove('active');
+        setTimeout(() => {
+            // Save Feedback Settings
+            if (hapticToggle) {
+                isHapticsEnabled = hapticToggle.checked;
+                localStorage.setItem('isHapticsEnabled', isHapticsEnabled);
+            }
+            if (soundToggle) {
+                isSoundEnabled = soundToggle.checked;
+                localStorage.setItem('isSoundEnabled', isSoundEnabled);
+            }
+
+            applyTheme();
+            updateUI();
+            
+            showButtonSuccess(saveSettingsBtn, originalHtml);
+            setTimeout(() => {
+                settingsModal.classList.remove('active');
+            }, 500);
+        }, 800);
     });
 }
 
@@ -1781,17 +2339,22 @@ if (SpeechRecognition) {
                 lastProcessed: null,
                 date: new Date().toISOString()
             };
-            transactions.push(newTransaction);
-            updateUI();
+            const originalHtml = vpConfirmBtn.innerHTML;
+            vpConfirmBtn.classList.add('loading');
+            
+            setTimeout(() => {
+                transactions.push(newTransaction);
+                updateUI();
 
-            // Success feedback
-            voiceStatusIcon.className = 'voice-status-icon success';
-            voiceStatusIcon.innerHTML = '<i class="fa-solid fa-check-double"></i>';
-            voicePanelTitle.textContent = 'Saved!';
-            vpConfirmBtn.disabled = true;
+                // Success feedback
+                voiceStatusIcon.className = 'voice-status-icon success';
+                voiceStatusIcon.innerHTML = '<i class="fa-solid fa-check-double"></i>';
+                voicePanelTitle.textContent = 'Saved!';
+                
+                showButtonSuccess(vpConfirmBtn, originalHtml);
 
-            setTimeout(closeVoicePanel, 1500);
-            setTimeout(() => { vpConfirmBtn.disabled = false; }, 1600);
+                setTimeout(closeVoicePanel, 1500);
+            }, 600);
         });
     }
 
@@ -1995,15 +2558,17 @@ function launchApp(appName, event) {
 
 // Behavioral Intelligence
 function updateBehavioralInsights() {
-    const recurringEl = document.querySelector('#recurringInsight p');
-    const trendEl = document.querySelector('#trendInsight p');
-    const projectionEl = document.querySelector('#projectionInsight p');
+    const recurringEls = document.querySelectorAll('.recurring-value');
+    const trendEls = document.querySelectorAll('.trend-value');
+    const projectionEls = document.querySelectorAll('.projection-value');
+
+    const updateAll = (els, html) => els.forEach(el => el.innerHTML = html);
 
     if (transactions.length < 3) return;
 
     const expenses = transactions.filter(t => t.type === 'expense');
 
-    // 1. Recurring Detection (Heuristic: same desc + approx same amount in diff months)
+    // 1. Recurring Detection
     const patterns = {};
     expenses.forEach(t => {
         const key = t.description.toLowerCase();
@@ -2017,9 +2582,11 @@ function updateBehavioralInsights() {
             recurringFound.push(`<strong>${desc}</strong> looks like a recurring monthly bill.`);
         }
     }
-    if (recurringEl) recurringEl.innerHTML = recurringFound.length > 0 ? recurringFound.join('<br>') : "No repeating cycles detected yet.";
+    if (recurringEls.length > 0) {
+        updateAll(recurringEls, recurringFound.length > 0 ? recurringFound[0] : "No repeating cycles detected yet.");
+    }
 
-    // 2. Spending Velocity (Last 7 days vs Previous 7 days)
+    // 2. Spending Velocity
     const now = new Date();
     const last7 = now.getTime() - (7 * 24 * 60 * 60 * 1000);
     const prev14 = now.getTime() - (14 * 24 * 60 * 60 * 1000);
@@ -2030,17 +2597,17 @@ function updateBehavioralInsights() {
         return d > prev14 && d <= last7;
     }).reduce((a,b) => a+b.amount, 0);
 
-    if (trendEl) {
+    if (trendEls.length > 0) {
         if (spendPrev7 === 0) {
-            trendEl.innerText = "Insufficient historical data for velocity comparison.";
+            updateAll(trendEls, "Analyzing your weekly trend...");
         } else {
             const diff = ((spendLast7 - spendPrev7) / spendPrev7) * 100;
-            trendEl.innerHTML = `You've spent <strong>${Math.abs(diff).toFixed(1)}% ${diff > 0 ? 'more' : 'less'}</strong> this week compared to last week.`;
+            updateAll(trendEls, `You've spent <strong>${Math.abs(diff).toFixed(1)}% ${diff > 0 ? 'more' : 'less'}</strong> this week compared to last week.`);
         }
     }
 
-    // 3. Projections
-    if (projectionEl) {
+    // 3. Projections & Budget Advice
+    if (projectionEls.length > 0) {
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const currentDay = now.getDate();
         const totalThisMonth = expenses.filter(t => {
@@ -2048,9 +2615,19 @@ function updateBehavioralInsights() {
             return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         }).reduce((a,b) => a+b.amount, 0);
 
-        if (currentDay > 2) {
+        if (currentDay > 1) {
             const projected = (totalThisMonth / currentDay) * daysInMonth;
-            projectionEl.innerHTML = `At your current rate, you will spend <strong>${formatCurrency(projected)}</strong> by the end of the month.`;
+            let msg = `Projected: <strong>${formatCurrency(projected)}</strong> by month end.`;
+            
+            if (monthlyBudget > 0) {
+                const remaining = monthlyBudget - totalThisMonth;
+                const remainingDays = daysInMonth - currentDay;
+                if (remainingDays > 0) {
+                    const dailyLimit = Math.max(0, remaining / remainingDays);
+                    msg += `<br>Safely spend <strong>${formatCurrency(dailyLimit)}</strong> daily to stay on track.`;
+                }
+            }
+            updateAll(projectionEls, msg);
         }
     }
 }
@@ -2097,10 +2674,19 @@ if (addMemberBtn) {
     addMemberBtn.addEventListener('click', () => {
         const name = newMemberInput.value.trim();
         if (name && !familyMembers.includes(name)) {
-            familyMembers.push(name);
-            newMemberInput.value = '';
-            renderMemberList();
-            updateMemberSelector();
+            const originalHtml = addMemberBtn.innerHTML;
+            addMemberBtn.classList.add('loading');
+            
+            setTimeout(() => {
+                familyMembers.push(name);
+                newMemberInput.value = '';
+                renderMemberList();
+                updateMemberSelector();
+                showButtonSuccess(addMemberBtn, originalHtml);
+            }, 500);
+        } else {
+            playSound('error');
+            triggerHaptic(40);
         }
     });
 }

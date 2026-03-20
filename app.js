@@ -11,6 +11,7 @@ let isDarkMode = localStorage.getItem('isDarkMode') !== 'false';
 let isFamilyMode = localStorage.getItem('isFamilyMode') === 'true';
 let familyMembers = JSON.parse(localStorage.getItem('familyMembers')) || ['Me'];
 let accentColor = localStorage.getItem('accentColor') || '#6366f1';
+let customAvatarUrl = localStorage.getItem('customAvatarUrl') || null;
 let chartInstance = null;
 let memberChartInstance = null;
 let editingId = null;
@@ -74,6 +75,74 @@ if (isRecurringToggle) {
         recurringFrequencySelect.style.display = isRecurringToggle.checked ? 'block' : 'none';
     });
 }
+
+// =====================================================
+// PROFILE PICTURE UPLOAD
+// =====================================================
+const avatarFileInput       = document.getElementById('avatarFileInput');
+const sidebarAvatarWrapper  = document.getElementById('sidebarAvatarWrapper');
+const settingsAvatarWrapper = document.getElementById('settingsAvatarWrapper');
+const settingsAvatarPreview = document.getElementById('settingsAvatarPreview');
+const removeAvatarBtn       = document.getElementById('removeAvatarBtn');
+
+function applyAvatar(url) {
+    const src = url || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(userName)}`;
+    if (displayAvatar) displayAvatar.src = src;
+    if (settingsAvatarPreview) settingsAvatarPreview.src = src;
+    if (removeAvatarBtn) removeAvatarBtn.style.display = url ? 'block' : 'none';
+}
+
+function triggerAvatarPicker() {
+    if (avatarFileInput) avatarFileInput.click();
+}
+
+if (sidebarAvatarWrapper) {
+    sidebarAvatarWrapper.addEventListener('click', (e) => {
+        e.stopPropagation(); // don't open settings
+        triggerAvatarPicker();
+    });
+}
+
+if (settingsAvatarWrapper) {
+    settingsAvatarWrapper.addEventListener('click', triggerAvatarPicker);
+}
+
+if (avatarFileInput) {
+    avatarFileInput.addEventListener('change', () => {
+        const file = avatarFileInput.files[0];
+        if (!file) return;
+
+        // Validate: images only, max 5 MB
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file (JPG, PNG, GIF, WebP, etc.)');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image is too large. Please choose a file under 5 MB.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            customAvatarUrl = e.target.result;
+            localStorage.setItem('customAvatarUrl', customAvatarUrl);
+            applyAvatar(customAvatarUrl);
+        };
+        reader.readAsDataURL(file);
+        avatarFileInput.value = ''; // reset so same file can be re-selected
+    });
+}
+
+if (removeAvatarBtn) {
+    removeAvatarBtn.addEventListener('click', () => {
+        customAvatarUrl = null;
+        localStorage.removeItem('customAvatarUrl');
+        applyAvatar(null);
+    });
+}
+
+// Apply saved avatar on load
+applyAvatar(customAvatarUrl);
 
 // Budget Elements
 const budgetContainer = document.getElementById('budgetContainer');
@@ -159,13 +228,11 @@ function handleLoading() {
             clearInterval(interval);
             setTimeout(() => {
                 loader.classList.add('fade-out');
-                // Initialize Auth after loading
-                initAuth();
-                updateUI();
                 applyTheme();
+                // Route: show auth if no account, else login screen
+                initAuthScreen();
             }, 500);
         } else {
-            // Faster at beginning, slower at end for natural feel
             const increment = Math.max(0.5, (100 - width) / 10);
             width += increment;
             if (width > 100) width = 100;
@@ -174,9 +241,159 @@ function handleLoading() {
     }, 50);
 }
 
+// =====================================================
+// AUTH — LOGIN / SIGN UP
+// =====================================================
+const AUTH_KEY = 'epro_account';
+
+function hashPassword(pw) {
+    // Simple reversible obfuscation for local storage (not production crypto)
+    return btoa(unescape(encodeURIComponent(pw + '_epro_salt')));
+}
+
+function getAccount() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch { return null; }
+}
+
+function initAuthScreen() {
+    const authScreen  = document.getElementById('authScreen');
+    const appContainer = document.getElementById('appContainer');
+    const account = getAccount();
+
+    if (!authScreen) {
+        // No auth screen in DOM, fall through
+        initAuth(); updateUI();
+        return;
+    }
+
+    if (account) {
+        // Returning user — show login tab
+        switchAuthTab('login');
+    } else {
+        // First time — show signup tab
+        switchAuthTab('signup');
+    }
+
+    authScreen.style.display = 'flex';
+    if (appContainer) appContainer.style.display = 'none';
+}
+
+function enterApp() {
+    const authScreen = document.getElementById('authScreen');
+    if (authScreen) authScreen.style.display = 'none';
+    initAuth();   // handles PIN lock screen
+    updateUI();
+}
+
+window.switchAuthTab = function(tab) {
+    const loginForm   = document.getElementById('loginForm');
+    const signupForm  = document.getElementById('signupForm');
+    const loginTab    = document.getElementById('loginTab');
+    const signupTab   = document.getElementById('signupTab');
+
+    if (tab === 'login') {
+        loginForm.style.display  = 'flex';
+        signupForm.style.display = 'none';
+        loginTab.classList.add('active');
+        signupTab.classList.remove('active');
+    } else {
+        loginForm.style.display  = 'none';
+        signupForm.style.display = 'flex';
+        signupTab.classList.add('active');
+        loginTab.classList.remove('active');
+    }
+};
+
+window.handleLogin = function(e) {
+    e.preventDefault();
+    const usernameInput = document.getElementById('loginUsername').value.trim().toLowerCase();
+    const passwordInput = document.getElementById('loginPassword').value;
+    const loginError    = document.getElementById('loginError');
+    const account = getAccount();
+
+    if (!account || account.username !== usernameInput || account.password !== hashPassword(passwordInput)) {
+        loginError.style.display = 'flex';
+        document.getElementById('loginPassword').value = '';
+        // Shake animation
+        const card = document.querySelector('.auth-card');
+        card.style.animation = 'none';
+        card.offsetHeight; // reflow
+        card.style.animation = 'authShake 0.4s ease';
+        setTimeout(() => card.style.animation = '', 500);
+        return;
+    }
+
+    loginError.style.display = 'none';
+    // Set userName so the app shows the right name
+    userName = account.displayName || account.username;
+    localStorage.setItem('userName', userName);
+    enterApp();
+};
+
+window.handleSignup = function(e) {
+    e.preventDefault();
+    const displayName = document.getElementById('signupName').value.trim();
+    const username    = document.getElementById('signupUsername').value.trim().toLowerCase();
+    const password    = document.getElementById('signupPassword').value;
+    const signupError = document.getElementById('signupError');
+
+    if (!displayName || !username || !password) {
+        signupError.style.display = 'block';
+        signupError.textContent   = 'All fields are required.';
+        return;
+    }
+    if (password.length < 6) {
+        signupError.style.display = 'block';
+        signupError.textContent   = 'Password must be at least 6 characters.';
+        return;
+    }
+
+    const account = { displayName, username, password: hashPassword(password) };
+    localStorage.setItem(AUTH_KEY, JSON.stringify(account));
+
+    // Set user display name
+    userName = displayName;
+    localStorage.setItem('userName', userName);
+    signupError.style.display = 'none';
+    enterApp();
+};
+
+window.togglePasswordVisibility = function(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const icon  = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+    }
+};
+
+window.logoutUser = function() {
+    if (!confirm('Log out of ExpensePro?')) return;
+    const authScreen   = document.getElementById('authScreen');
+    const appContainer = document.getElementById('appContainer');
+    if (appContainer) appContainer.style.display = 'none';
+    if (authScreen)   { authScreen.style.display = 'flex'; switchAuthTab('login'); }
+};
+
 // Initial Call
 document.addEventListener('DOMContentLoaded', () => {
     handleLoading();
+
+    // Live Date & Time on Dashboard
+    const dashboardDate = document.getElementById('dashboardDate');
+    function updateDashboardDate() {
+        if (!dashboardDate) return;
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const dateStr = now.toLocaleDateString(undefined, options);
+        const timeStr = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        dashboardDate.textContent = `${dateStr} • ${timeStr}`;
+    }
+    updateDashboardDate();
+    setInterval(updateDashboardDate, 1000);
 });
 
 function updateUI() {
@@ -184,11 +401,11 @@ function updateUI() {
     updateBalance();
     updateChart();
     
-    if (userName && displayUsername && displayCardholder && displayAvatar) {
+    if (userName && displayUsername && displayCardholder) {
         displayUsername.innerText = userName;
         displayCardholder.innerText = userName;
-        displayAvatar.src = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(userName)}`;
     }
+    applyAvatar(customAvatarUrl);
     
     // Save to local storage
     localStorage.setItem('transactions', JSON.stringify(transactions));
@@ -655,6 +872,9 @@ function openSettings() {
         pinSetupArea.style.display = isPinEnabled ? 'block' : 'none';
         newPinInput.value = appPin || '';
     }
+
+    // Sync avatar preview
+    applyAvatar(customAvatarUrl);
 }
 
 if(pinToggle) {
@@ -784,92 +1004,217 @@ if (resetAppBtn) {
         }
     });
 }
-
-// Speech Recognition
+// =======================================================
+// VOICE EXPENSE ENGINE
+// =======================================================
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognition && voiceAddBtn) {
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
 
+const floatingVoiceBtn  = document.getElementById('floatingVoiceBtn');
+const voicePanel        = document.getElementById('voicePanel');
+const voicePanelTitle   = document.getElementById('voicePanelTitle');
+const voiceTranscript   = document.getElementById('voiceTranscript');
+const voiceStatusIcon   = document.getElementById('voiceStatusIcon');
+const voiceParsedResult = document.getElementById('voiceParsedResult');
+const vpAmount          = document.getElementById('vpAmount');
+const vpType            = document.getElementById('vpType');
+const vpCategory        = document.getElementById('vpCategory');
+const vpNote            = document.getElementById('vpNote');
+const vpConfirmBtn      = document.getElementById('vpConfirmBtn');
+const vpRetryBtn        = document.getElementById('vpRetryBtn');
+const voicePanelClose   = document.getElementById('voicePanelClose');
+
+// Also keep the in-modal button hidden (already exists in HTML)
+if (voiceAddBtn) voiceAddBtn.style.display = 'none';
+
+// Parsed state holder
+let voiceParsedData = null;
+
+// ---- Smart NLP Parser ----
+function parseVoiceTranscript(text) {
+    const t = text.toLowerCase().trim();
+
+    // 1. Extract amount — handles "50", "50.5", "fifty" (simple word-to-num)
+    const wordNumbers = {
+        'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,
+        'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,
+        'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,
+        'nineteen':19,'twenty':20,'thirty':30,'forty':40,'fifty':50,
+        'sixty':60,'seventy':70,'eighty':80,'ninety':90,'hundred':100,
+        'thousand':1000
+    };
+    let amount = null;
+
+    // Try numeric first
+    const numMatch = t.match(/\b(\d+(?:\.\d+)?)\b/);
+    if (numMatch) {
+        amount = parseFloat(numMatch[1]);
+    } else {
+        // Try word numbers
+        let total = 0;
+        t.split(/\s+/).forEach(w => {
+            if (wordNumbers[w] !== undefined) total += wordNumbers[w];
+        });
+        if (total > 0) amount = total;
+    }
+
+    // 2. Determine transaction type
+    const incomeKeywords = ['income', 'salary', 'earned', 'received', 'paid me', 'wage', 'bonus', 'freelance'];
+    const isIncome = incomeKeywords.some(kw => t.includes(kw));
+    const type = isIncome ? 'income' : 'expense';
+
+    // 3. Determine category
+    const categoryMap = [
+        { cat: 'Food',          words: ['food','lunch','dinner','breakfast','coffee','tea','groceries','grocery','restaurant','pizza','burger','snack','drink','cafe', 'meal'] },
+        { cat: 'Transport',     words: ['transport','uber','taxi','bus','train','metro','petrol','gas','fuel','cab','auto','ride','fare','travel'] },
+        { cat: 'Shopping',      words: ['shopping','clothes','shirt','shoes','dress','bag','mall','amazon','flipkart','store','buy','bought','purchased'] },
+        { cat: 'Bills',         words: ['bill','rent','electricity','water','internet','wifi','phone','mobile','recharge','utility','emi','loan','insurance'] },
+        { cat: 'Entertainment', words: ['movie','film','netflix','spotify','game','entertainment','concert','show','ticket','theatre','pub','party'] },
+        { cat: 'Salary',        words: ['salary','wage','paycheck','stipend','bonus'] },
+    ];
+
+    let category = 'Other';
+    for (const entry of categoryMap) {
+        if (entry.words.some(w => t.includes(w))) {
+            category = entry.cat;
+            break;
+        }
+    }
+    if (isIncome && category === 'Other') category = 'Salary';
+
+    // 4. Build description — strip numbers and keywords, use rest as note
+    let note = t
+        .replace(/\b\d+(?:\.\d+)?\b/g, '')
+        .replace(/\b(spent|spend|paid|pay|for|on|in|at|a|the|my|i|me|to|rupees?|dollars?|bucks?|rs\.?|usd|inr)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!note) note = category;
+    note = note.charAt(0).toUpperCase() + note.slice(1);
+
+    return { amount, type, category, note, raw: text };
+}
+
+// ---- Voice Panel UI helpers ----
+function showVoiceListening() {
+    voicePanel.style.display = 'block';
+    voiceParsedResult.style.display = 'none';
+    voiceStatusIcon.className = 'voice-status-icon listening';
+    voiceStatusIcon.innerHTML = '<i class="fa-solid fa-microphone-lines fa-beat"></i>';
+    voicePanelTitle.textContent = 'Listening...';
+    voiceTranscript.textContent = 'Speak now — e.g. "Spent 50 on food" or "Salary 25000"';
+    floatingVoiceBtn.classList.add('active');
+}
+
+function showVoiceParsed(data) {
+    voiceParsedResult.style.display = 'block';
+    voiceStatusIcon.className = 'voice-status-icon success';
+    voiceStatusIcon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+    voicePanelTitle.textContent = 'Got it! Review below:';
+    voiceTranscript.textContent = `"${data.raw}"`;
+
+    const fmt = (n) => new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(n);
+    vpAmount.textContent   = data.amount !== null ? fmt(data.amount) : '—';
+    vpType.textContent     = data.type.charAt(0).toUpperCase() + data.type.slice(1);
+    vpType.style.color     = data.type === 'income' ? 'var(--success)' : 'var(--danger)';
+    vpCategory.textContent = data.category;
+    vpNote.textContent     = data.note;
+    floatingVoiceBtn.classList.remove('active');
+}
+
+function showVoiceError(msg) {
+    voiceStatusIcon.className = 'voice-status-icon error';
+    voiceStatusIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+    voicePanelTitle.textContent = 'Could not understand';
+    voiceTranscript.textContent = msg || 'Please try again.';
+    floatingVoiceBtn.classList.remove('active');
+}
+
+function closeVoicePanel() {
+    voicePanel.style.display = 'none';
+    voiceParsedResult.style.display = 'none';
+    voiceParsedData = null;
+    floatingVoiceBtn.classList.remove('active');
+}
+
+// ---- Core Recognition ----
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.continuous  = false;
+    recognition.lang        = 'en-US';
+    recognition.interimResults = false;
     let isListening = false;
 
-    voiceAddBtn.addEventListener('click', () => {
-        if (isListening) {
-            recognition.stop();
-            return;
-        }
-        
-        voiceAddBtn.innerHTML = '<i class="fa-solid fa-microphone-lines fa-beat"></i> Listening...';
-        voiceAddBtn.style.background = 'var(--accent-color)';
-        
+    function startListening() {
+        if (isListening) { recognition.stop(); return; }
+        showVoiceListening();
         try {
             recognition.start();
             isListening = true;
         } catch(e) {
-            console.error(e);
+            showVoiceError('Microphone access denied or unavailable.');
         }
-    });
+    }
+
+    floatingVoiceBtn.addEventListener('click', startListening);
+    if (vpRetryBtn) vpRetryBtn.addEventListener('click', startListening);
 
     recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript.toLowerCase();
-        
-        // 1. Extract Number (Amount) using foolproof regex
-        const match = transcript.match(/[0-9]+(\\.[0-9]+)?/);
-        if (match) {
-            document.getElementById('amount').value = match[0];
+        const transcript = event.results[0][0].transcript;
+        const parsed = parseVoiceTranscript(transcript);
+
+        if (!parsed.amount || parsed.amount <= 0) {
+            showVoiceError(`Heard: "${transcript}" — couldn't find an amount. Try "50 for coffee".`);
+            return;
         }
-        
-        // 2. Determine Category
-        const categorySelect = document.getElementById('category');
-        if (transcript.includes('food') || transcript.includes('lunch') || transcript.includes('coffee') || transcript.includes('dinner') || transcript.includes('grocery')) {
-            categorySelect.value = 'Food';
-        } else if (transcript.includes('transport') || transcript.includes('uber') || transcript.includes('taxi') || transcript.includes('gas') || transcript.includes('bus')) {
-            categorySelect.value = 'Transport';
-        } else if (transcript.includes('shopping') || transcript.includes('shirt') || transcript.includes('clothes') || transcript.includes('shoes')) {
-            categorySelect.value = 'Shopping';
-        } else if (transcript.includes('bill') || transcript.includes('rent') || transcript.includes('electric') || transcript.includes('internet') || transcript.includes('water')) {
-            categorySelect.value = 'Bills';
-        } else if (transcript.includes('movie') || transcript.includes('ticket') || transcript.includes('game') || transcript.includes('entertainment')) {
-            categorySelect.value = 'Entertainment';
-        } else if (transcript.includes('salary') || transcript.includes('pay') || transcript.includes('wage')) {
-            categorySelect.value = 'Salary';
-            document.getElementById('typeIncome').checked = true;
-        } else {
-            categorySelect.value = 'Other';
-        }
-        
-        if (!transcript.includes('salary') && !transcript.includes('pay') && !transcript.includes('wage')) {
-            document.getElementById('typeExpense').checked = true;
-        }
-        
-        // 3. Set Description
-        document.getElementById('description').value = transcript.charAt(0).toUpperCase() + transcript.slice(1);
-        
-        voiceAddBtn.innerHTML = '<i class="fa-solid fa-check"></i> Processed!';
-        voiceAddBtn.style.background = 'var(--success)';
-        
-        setTimeout(() => {
-            voiceAddBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Tap & Speak (e.g. "25 for Food")';
-            voiceAddBtn.style.background = 'rgba(255,255,255,0.1)';
-        }, 3000);
+
+        voiceParsedData = parsed;
+        showVoiceParsed(parsed);
     };
 
     recognition.onerror = (event) => {
-        voiceAddBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Error listening';
-        voiceAddBtn.style.background = 'var(--danger)';
-        setTimeout(() => {
-            voiceAddBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Tap & Speak (e.g. "25 for Food")';
-            voiceAddBtn.style.background = 'rgba(255,255,255,0.1)';
-        }, 3000);
+        let msg = 'An error occurred. Please try again.';
+        if (event.error === 'no-speech') msg = 'No speech detected. Tap mic and speak clearly.';
+        if (event.error === 'not-allowed') msg = 'Microphone access denied. Please allow microphone.';
+        showVoiceError(msg);
     };
 
-    recognition.onend = () => {
-        isListening = false;
-    };
-} else if (voiceAddBtn) {
-    voiceAddBtn.style.display = 'none';
+    recognition.onend = () => { isListening = false; };
+
+    // Confirm → save transaction directly
+    if (vpConfirmBtn) {
+        vpConfirmBtn.addEventListener('click', () => {
+            if (!voiceParsedData || !voiceParsedData.amount) return;
+            const d = voiceParsedData;
+            const newTransaction = {
+                id: Date.now().toString(),
+                type: d.type,
+                amount: d.amount,
+                category: d.category,
+                description: d.note,
+                member: isFamilyMode ? (familyMembers[0] || 'Me') : 'Me',
+                isRecurring: false,
+                frequency: null,
+                lastProcessed: null,
+                date: new Date().toISOString()
+            };
+            transactions.push(newTransaction);
+            updateUI();
+
+            // Success feedback
+            voiceStatusIcon.className = 'voice-status-icon success';
+            voiceStatusIcon.innerHTML = '<i class="fa-solid fa-check-double"></i>';
+            voicePanelTitle.textContent = 'Saved!';
+            vpConfirmBtn.disabled = true;
+
+            setTimeout(closeVoicePanel, 1500);
+            setTimeout(() => { vpConfirmBtn.disabled = false; }, 1600);
+        });
+    }
+
+    if (voicePanelClose) voicePanelClose.addEventListener('click', closeVoicePanel);
+
+} else {
+    // Browser doesn't support speech — hide button
+    if (floatingVoiceBtn) floatingVoiceBtn.style.display = 'none';
 }
 
 // View Switching Logic

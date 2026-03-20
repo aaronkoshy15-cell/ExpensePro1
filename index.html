@@ -32,6 +32,87 @@
         </div>
     </div>
 
+    <!-- Auth Screen (Login / Sign Up) -->
+    <div class="auth-screen" id="authScreen" style="display:none;">
+        <div class="auth-bg-orb orb1"></div>
+        <div class="auth-bg-orb orb2"></div>
+        <div class="auth-card glass-panel">
+            <!-- Logo -->
+            <div class="auth-logo">
+                <div class="loading-logo" style="margin:0 auto 1rem;">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+                <h1 style="font-size:1.75rem;font-weight:700;">ExpensePro</h1>
+                <p class="subtitle" style="font-size:0.85rem;margin-top:0.25rem;">Your premium finance companion</p>
+            </div>
+
+            <!-- Tab Toggle -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="loginTab" onclick="switchAuthTab('login')">Login</button>
+                <button class="auth-tab" id="signupTab" onclick="switchAuthTab('signup')">Sign Up</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="loginUsername">Username</label>
+                    <div class="auth-input-wrapper">
+                        <i class="fa-solid fa-user auth-input-icon"></i>
+                        <input type="text" id="loginUsername" placeholder="Enter your username" autocomplete="username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <div class="auth-input-wrapper">
+                        <i class="fa-solid fa-lock auth-input-icon"></i>
+                        <input type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password" required>
+                        <button type="button" class="auth-eye-btn" onclick="togglePasswordVisibility('loginPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <p id="loginError" class="auth-error" style="display:none;"><i class="fa-solid fa-circle-exclamation"></i> Incorrect username or password.</p>
+                <button type="submit" class="btn-primary w-100" style="margin-top:0.5rem;justify-content:center;">
+                    <i class="fa-solid fa-arrow-right-to-bracket"></i> Login
+                </button>
+            </form>
+
+            <!-- Sign Up Form -->
+            <form id="signupForm" class="auth-form" style="display:none;" onsubmit="handleSignup(event)">
+                <div class="form-group">
+                    <label for="signupName">Display Name</label>
+                    <div class="auth-input-wrapper">
+                        <i class="fa-solid fa-id-card auth-input-icon"></i>
+                        <input type="text" id="signupName" placeholder="Your name (e.g. Aaron)" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="signupUsername">Username</label>
+                    <div class="auth-input-wrapper">
+                        <i class="fa-solid fa-user auth-input-icon"></i>
+                        <input type="text" id="signupUsername" placeholder="Choose a username" autocomplete="username" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <div class="auth-input-wrapper">
+                        <i class="fa-solid fa-lock auth-input-icon"></i>
+                        <input type="password" id="signupPassword" placeholder="Create a password (min 6 chars)" autocomplete="new-password" required minlength="6">
+                        <button type="button" class="auth-eye-btn" onclick="togglePasswordVisibility('signupPassword', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <p id="signupError" class="auth-error" style="display:none;"></p>
+                <button type="submit" class="btn-primary w-100" style="margin-top:0.5rem;justify-content:center;">
+                    <i class="fa-solid fa-user-plus"></i> Create Account
+                </button>
+            </form>
+
+            <p class="auth-footer-note">Your data is stored locally on this device.</p>
+        </div>
+    </div>
+
     <!-- Lock Screen -->
     <div class="lock-screen" id="lockScreen" style="display: none;">
         <div class="lock-panel glass-panel">
@@ -73,9 +154,14 @@
                 <li id="openSettingsBtn" data-target="settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></li>
             </ul>
             <div class="user-profile" id="userProfileBtn" style="cursor: pointer;" title="Open Profile Settings">
-                <img src="https://api.dicebear.com/7.x/notionists/svg?seed=User" alt="User Avatar" class="avatar" id="displayAvatar">
+                <div class="avatar-wrapper" id="sidebarAvatarWrapper" title="Click to change photo">
+                    <img src="https://api.dicebear.com/7.x/notionists/svg?seed=User" alt="User Avatar" class="avatar" id="displayAvatar">
+                    <div class="avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+                </div>
                 <span class="username" id="displayUsername">User</span>
             </div>
+            <!-- Hidden file input for avatar upload -->
+            <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
         </nav>
 
         <!-- Main Content Area -->
@@ -84,6 +170,7 @@
                 <div class="header-text">
                     <h1>Dashboard</h1>
                     <p class="subtitle">Welcome back! Track your daily expenses.</p>
+                    <p id="dashboardDate" class="dashboard-date"></p>
                 </div>
                 <div class="header-actions">
                     <select id="currencySelector" class="currency-dropdown" onchange="changeCurrency(this.value)">
@@ -209,6 +296,47 @@
             </div>
         </main>
 
+        <!-- Voice Feedback Panel -->
+        <div id="voicePanel" class="voice-panel glass-panel" style="display:none;">
+            <div class="voice-panel-header">
+                <div id="voiceStatusIcon" class="voice-status-icon listening">
+                    <i class="fa-solid fa-microphone-lines fa-beat"></i>
+                </div>
+                <div>
+                    <h3 id="voicePanelTitle">Listening...</h3>
+                    <p id="voiceTranscript" class="subtitle" style="font-size:0.85rem;">Speak now — e.g. "Spent 50 on food"</p>
+                </div>
+                <button id="voicePanelClose" class="close-btn" style="margin-left:auto;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="voiceParsedResult" style="display:none; margin-top:1rem;">
+                <div class="voice-result-row">
+                    <span class="voice-label">Amount</span>
+                    <span id="vpAmount" class="voice-value text-green"></span>
+                </div>
+                <div class="voice-result-row">
+                    <span class="voice-label">Type</span>
+                    <span id="vpType" class="voice-value"></span>
+                </div>
+                <div class="voice-result-row">
+                    <span class="voice-label">Category</span>
+                    <span id="vpCategory" class="voice-value"></span>
+                </div>
+                <div class="voice-result-row">
+                    <span class="voice-label">Note</span>
+                    <span id="vpNote" class="voice-value" style="color:var(--text-secondary);font-size:0.85rem;"></span>
+                </div>
+                <div style="display:flex;gap:0.75rem;margin-top:1.25rem;">
+                    <button id="vpConfirmBtn" class="btn-primary" style="flex:1;justify-content:center;"><i class="fa-solid fa-check"></i> Save</button>
+                    <button id="vpRetryBtn" class="btn-primary" style="flex:1;justify-content:center;background:rgba(255,255,255,0.1);box-shadow:none;"><i class="fa-solid fa-rotate-left"></i> Retry</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Voice Button -->
+        <button id="floatingVoiceBtn" class="floating-voice-btn" title="Add expense by voice">
+            <i class="fa-solid fa-microphone"></i>
+        </button>
+
         <!-- Subscriptions Content Area -->
         <main class="main-content" id="subscriptions" style="display: none;">
             <header class="top-header">
@@ -328,6 +456,18 @@
                     <!-- Profile Box -->
                     <div class="settings-box">
                         <h3 class="box-title"><i class="fa-solid fa-user"></i> Profile Settings</h3>
+                        <!-- Avatar Upload -->
+                        <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1.25rem;">
+                            <div class="avatar-wrapper settings-avatar-wrapper" id="settingsAvatarWrapper" title="Click to change photo">
+                                <img id="settingsAvatarPreview" class="settings-avatar" src="https://api.dicebear.com/7.x/notionists/svg?seed=User" alt="Profile">
+                                <div class="avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+                            </div>
+                            <div>
+                                <p style="font-weight:600;margin-bottom:0.25rem;">Profile Photo</p>
+                                <p class="subtitle" style="font-size:0.8rem;">Click photo to upload</p>
+                                <button id="removeAvatarBtn" class="btn-text" style="font-size:0.8rem;color:var(--danger);margin-top:0.4rem;display:none;"><i class="fa-solid fa-trash"></i> Remove photo</button>
+                            </div>
+                        </div>
                         <div class="form-group" style="text-align: left; margin-bottom: 0;">
                             <label for="settingsNameInput">Display Name</label>
                             <input type="text" id="settingsNameInput" placeholder="Enter your name">
@@ -423,8 +563,9 @@
                     </div>
 
                     <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1rem;">Save All Settings</button>
-                    <div style="margin-top: 1.5rem; text-align: center;">
-                        <button id="resetAppBtn" class="btn-text" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Erase Profile & Data</button>
+                    <div style="margin-top: 1.5rem; display:flex; justify-content:center; gap:1.5rem; flex-wrap:wrap;">
+                        <button onclick="logoutUser()" class="btn-text" style="color: var(--accent-color);"><i class="fa-solid fa-right-from-bracket"></i> Log Out</button>
+                        <button id="resetAppBtn" class="btn-text" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Erase Profile &amp; Data</button>
                     </div>
                 </div>
             </div>

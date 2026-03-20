@@ -71,6 +71,10 @@
                         </button>
                     </div>
                 </div>
+                <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                    <input type="checkbox" id="loginKeepIn" style="width: auto; margin: 0;">
+                    <label for="loginKeepIn" style="margin: 0; font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);">Keep me logged in</label>
+                </div>
                 <p id="loginError" class="auth-error" style="display:none;"><i class="fa-solid fa-circle-exclamation"></i> Incorrect username or password.</p>
                 <button type="submit" class="btn-primary w-100" style="margin-top:0.5rem;justify-content:center;">
                     <i class="fa-solid fa-arrow-right-to-bracket"></i> Login
@@ -102,6 +106,10 @@
                             <i class="fa-solid fa-eye"></i>
                         </button>
                     </div>
+                </div>
+                <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                    <input type="checkbox" id="signupKeepIn" checked style="width: auto; margin: 0;">
+                    <label for="signupKeepIn" style="margin: 0; font-size: 0.85rem; cursor: pointer; color: var(--text-secondary);">Keep me logged in</label>
                 </div>
                 <p id="signupError" class="auth-error" style="display:none;"></p>
                 <button type="submit" class="btn-primary w-100" style="margin-top:0.5rem;justify-content:center;">
@@ -544,7 +552,7 @@
                     <!-- Security Box -->
                     <div class="settings-box">
                         <h3 class="box-title"><i class="fa-solid fa-shield-halved"></i> App Security</h3>
-                        <div class="setting-item" style="border-bottom: none; padding-top: 0;">
+                        <div class="setting-item">
                             <div class="setting-info">
                                 <h3 style="font-size: 1rem;">Require PIN</h3>
                                 <p>Protect your data with a 4-digit PIN</p>
@@ -554,13 +562,53 @@
                                 <span class="slider round"></span>
                             </label>
                         </div>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Touch Feedback</h3>
+                                <p>Haptic vibration on button clicks</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="hapticToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="setting-item" style="border-bottom: none;">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Audio Feedback</h3>
+                                <p>Sound effects for interactions</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="soundToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
                         <div id="pinSetupArea" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
                             <div class="form-group" style="text-align: left; margin-bottom: 0;">
                                 <label for="newPin">Set 4-Digit PIN</label>
                                 <input type="password" id="newPin" placeholder="••••" maxlength="4">
                             </div>
                         </div>
+                        <!-- Login Devices button -->
+                        <button onclick="openDevicesModal()" class="btn-text" style="display:flex;align-items:center;gap:0.5rem;margin-top:1.25rem;color:var(--accent-color);font-size:0.9rem;">
+                            <i class="fa-solid fa-laptop-mobile"></i> View Login Devices
+                        </button>
                     </div>
+
+                    <!-- Data Management Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-database"></i> Data & Backup</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">Export your profile to a file or restore from a previous backup.</p>
+                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                            <button onclick="exportData()" class="btn-text" style="color: var(--accent-color); background: rgba(99, 102, 241, 0.1); padding: 0.5rem 0.75rem; border-radius: 8px;">
+                                <i class="fa-solid fa-file-export"></i> Export Backup
+                            </button>
+                            <button onclick="document.getElementById('importFile').click()" class="btn-text" style="color: var(--success); background: rgba(16, 185, 129, 0.1); padding: 0.5rem 0.75rem; border-radius: 8px;">
+                                <i class="fa-solid fa-file-import"></i> Restore Backup
+                            </button>
+                            <input type="file" id="importFile" style="display: none;" accept=".json" onchange="importData(event)">
+                        </div>
+                    </div>
+
 
                     <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1rem;">Save All Settings</button>
                     <div style="margin-top: 1.5rem; display:flex; justify-content:center; gap:1.5rem; flex-wrap:wrap;">
@@ -632,6 +680,59 @@
             </div>
         </div>
     </div>
+
+    <!-- Login Devices Modal -->
+    <div class="modal-overlay" id="devicesModal" style="display:none;" onclick="if(event.target===this)closeDevicesModal()">
+        <div class="devices-modal glass-panel">
+
+            <!-- Header -->
+            <div class="devices-modal-header">
+                <div class="dv-header-left">
+                    <div class="dv-header-icon">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </div>
+                    <div>
+                        <h2 style="font-size:1.4rem;font-weight:700;">Login Devices</h2>
+                        <p class="subtitle" style="font-size:0.8rem;margin-top:2px;">Manage devices with access to your account</p>
+                    </div>
+                </div>
+                <button class="close-btn" onclick="closeDevicesModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Security Summary Strip -->
+            <div class="dv-security-strip" id="dvSecurityStrip">
+                <div class="dv-stat">
+                    <i class="fa-solid fa-display"></i>
+                    <span id="dvTotalCount">0 Devices</span>
+                </div>
+                <div class="dv-stat-divider"></div>
+                <div class="dv-stat">
+                    <i class="fa-solid fa-circle-check" style="color:var(--success);"></i>
+                    <span id="dvActiveCount">0 Active</span>
+                </div>
+                <div class="dv-stat-divider"></div>
+                <div class="dv-stat" id="dvSecurityStatus">
+                    <i class="fa-solid fa-lock" style="color:var(--success);"></i>
+                    <span>Account Secure</span>
+                </div>
+            </div>
+
+            <!-- Device List -->
+            <div id="devicesList" class="devices-list"></div>
+
+            <!-- Footer Actions -->
+            <div class="dv-footer">
+                <button onclick="addSimulatedDevice()" class="dv-footer-btn dv-btn-ghost">
+                    <i class="fa-solid fa-plus"></i> Simulate Device
+                </button>
+                <button onclick="signOutAllOtherDevices()" class="dv-footer-btn dv-btn-warning">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out All Others
+                </button>
+            </div>
+        </div>
+    </div>
+
+
     <script src="app.js"></script>
 </body>
 </html>

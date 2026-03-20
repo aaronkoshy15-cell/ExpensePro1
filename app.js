@@ -12,9 +12,209 @@ let isFamilyMode = localStorage.getItem('isFamilyMode') === 'true';
 let familyMembers = JSON.parse(localStorage.getItem('familyMembers')) || ['Me'];
 let accentColor = localStorage.getItem('accentColor') || '#6366f1';
 let customAvatarUrl = localStorage.getItem('customAvatarUrl') || null;
+
+// Haptic & Sound Feedback State
+let isHapticsEnabled = localStorage.getItem('isHapticsEnabled') !== 'false'; // default on
+let isSoundEnabled   = localStorage.getItem('isSoundEnabled')   !== 'false'; // default on
+
 let chartInstance = null;
 let memberChartInstance = null;
 let editingId = null;
+
+// =====================================================
+// PERSISTENCE SERVICE (IndexedDB Mirroring)
+// =====================================================
+const DB_NAME = 'ExpenseProDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'app_data';
+
+async function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
+
+async function syncToIndexedDB() {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        
+        const data = {
+            transactions,
+            currentCurrency,
+            userName,
+            appPin,
+            isPinEnabled,
+            monthlyBudget,
+            goalName,
+            goalAmount,
+            isDarkMode,
+            isFamilyMode,
+            familyMembers,
+            accentColor,
+            customAvatarUrl,
+            isHapticsEnabled,
+            isSoundEnabled,
+            epro_account: localStorage.getItem('epro_account'),
+            epro_devices: localStorage.getItem('epro_devices'),
+            epro_remembered: localStorage.getItem('epro_remembered'),
+            lastSync: new Date().toISOString()
+        };
+        
+        store.put(data, 'main_backup');
+        return true;
+    } catch (e) {
+        console.error('IndexedDB Sync Failed:', e);
+        return false;
+    }
+}
+
+async function restoreFromIndexedDB() {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const request = store.get('main_backup');
+        
+        return new Promise((resolve) => {
+            request.onsuccess = () => {
+                const data = request.result;
+                if (data) {
+                    // Only restore if localStorage is actually empty/suspiciously small
+                    if (!localStorage.getItem('transactions') || JSON.parse(localStorage.getItem('transactions')).length === 0) {
+                        for (const key in data) {
+                            if (key === 'lastSync') continue;
+                            const val = typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]);
+                            localStorage.setItem(key, val);
+                        }
+                        console.log('Data restored from IndexedDB');
+                        location.reload(); // Reload to apply restored state
+                    }
+                }
+                resolve(true);
+            };
+            request.onerror = () => resolve(false);
+        });
+    } catch (e) {
+        return false;
+    }
+}
+
+// ---- Data Export/Import ----
+window.exportData = function() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        data[key] = localStorage.getItem(key);
+    }
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ExpensePro_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    playSound('success');
+    triggerHaptic(20);
+};
+
+window.importData = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (confirm("This will replace all current data with the backup. Proceed?")) {
+                localStorage.clear();
+                for (const key in data) {
+                    localStorage.setItem(key, data[key]);
+                }
+                alert("Data restored successfully! The app will now reload.");
+                playSound('success');
+                location.reload();
+            }
+        } catch (err) {
+            alert("Invalid backup file.");
+            playSound('error');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset input
+};
+
+// =====================================================
+// FEEDBACK SERVICE (Haptics & Sound)
+// =====================================================
+function triggerHaptic(duration = 15) {
+    if (!isHapticsEnabled) return;
+    if (navigator.vibrate) {
+        navigator.vibrate(duration);
+    }
+}
+
+// Lightweight Sound Synthesis (no external files needed)
+function playSound(type) {
+    if (!isSoundEnabled) return;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+
+    if (type === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'success') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1000, now);
+        osc.frequency.exponentialRampToValueAtTime(1500, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    } else if (type === 'error') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    }
+}
+
+// Global Click Listener for Haptics & Sound
+document.addEventListener('click', (e) => {
+    const target = e.target.closest('button, a, .num-btn, .nav-links li, .lock-dot');
+    if (target) {
+        triggerHaptic(15);
+        if (target.classList.contains('num-btn')) {
+            playSound('click');
+        }
+    }
+}, true);
 
 // Currency Selection
 function changeCurrency(currency) {
@@ -34,6 +234,351 @@ const closeModalBtn = document.getElementById('closeModalBtn');
 const modalOverlay = document.getElementById('addTransactionModal');
 const transactionForm = document.getElementById('transactionForm');
 const voiceAddBtn = document.getElementById('voiceAddBtn');
+
+// // =====================================================
+// LOGIN DEVICES — Multi-Device Session Tracking
+// =====================================================
+const DEVICES_KEY     = 'epro_devices';
+const DEVICE_ID_KEY   = 'epro_device_id';   // unique ID per browser/profile
+
+// Generate (or reuse) a unique ID for THIS browser install
+function getOrCreateDeviceId() {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+        id = 'dev_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+}
+
+function getDeviceInfo() {
+    const ua = navigator.userAgent;
+    let deviceType = 'Desktop';
+    let deviceIcon = 'fa-desktop';
+    if (/Android/i.test(ua))          { deviceType = 'Android';      deviceIcon = 'fa-mobile-screen-button'; }
+    else if (/iPhone|iPod/i.test(ua)) { deviceType = 'iPhone';       deviceIcon = 'fa-mobile-screen-button'; }
+    else if (/iPad/i.test(ua))        { deviceType = 'iPad';         deviceIcon = 'fa-tablet-screen-button'; }
+    else if (/Windows Phone/i.test(ua)){ deviceType ='Windows Phone'; deviceIcon = 'fa-mobile-screen-button'; }
+
+    let browser = 'Unknown Browser';
+    if (/Edg\//i.test(ua))                                 browser = 'Microsoft Edge';
+    else if (/OPR\//i.test(ua))                             browser = 'Opera';
+    else if (/Chrome\//i.test(ua) && !/Chromium/i.test(ua)) browser = 'Google Chrome';
+    else if (/Firefox\//i.test(ua))                         browser = 'Mozilla Firefox';
+    else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua))  browser = 'Safari';
+
+    let os = 'Unknown OS';
+    if (/Windows NT 10/.test(ua))   os = 'Windows 10/11';
+    else if (/Windows NT 6\.3/.test(ua)) os = 'Windows 8.1';
+    else if (/Mac OS X/.test(ua))   os = 'macOS';
+    else if (/Linux/.test(ua))      os = 'Linux';
+    else if (/Android/.test(ua))    os = 'Android';
+    else if (/iPhone OS/.test(ua))  os = 'iOS';
+
+    return { deviceType, deviceIcon, browser, os };
+}
+
+// Seed realistic past-device history so the panel is never empty
+function seedSimulatedDevices() {
+    const now = Date.now();
+    return [
+        {
+            id: 'sim_1',
+            fingerprint: 'sim_phone_1',
+            deviceType: 'iPhone',
+            deviceIcon: 'fa-mobile-screen-button',
+            browser: 'Safari',
+            os: 'iOS',
+            location: 'Mumbai, IN',
+            firstLogin: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            lastSeen:   new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            isCurrent: false,
+            isSimulated: true
+        },
+        {
+            id: 'sim_2',
+            fingerprint: 'sim_tablet_1',
+            deviceType: 'iPad',
+            deviceIcon: 'fa-tablet-screen-button',
+            browser: 'Safari',
+            os: 'iOS',
+            location: 'Chennai, IN',
+            firstLogin: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            lastSeen:   new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+            isCurrent: false,
+            isSimulated: true
+        },
+        {
+            id: 'sim_3',
+            fingerprint: 'sim_desktop_1',
+            deviceType: 'Desktop',
+            deviceIcon: 'fa-desktop',
+            browser: 'Mozilla Firefox',
+            os: 'Windows 10/11',
+            location: 'Bangalore, IN',
+            firstLogin: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
+            lastSeen:   new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+            isCurrent: false,
+            isSimulated: true
+        }
+    ];
+}
+
+function registerDevice() {
+    let devices = JSON.parse(localStorage.getItem(DEVICES_KEY)) || [];
+    const info       = getDeviceInfo();
+    const deviceId   = getOrCreateDeviceId();
+    const now        = new Date().toISOString();
+
+    // Migration: wipe old-format data (no isSimulated field → old implementation)
+    const hasNewFormat = devices.some(d => d.isSimulated !== undefined);
+    if (!hasNewFormat) {
+        devices = [];
+        localStorage.removeItem(DEVICES_KEY);
+    }
+
+    // Seed simulated devices on very first registration (or after migration)
+    if (devices.length === 0) {
+        devices = seedSimulatedDevices();
+    }
+
+    // Mark all as non-current first
+    devices.forEach(d => d.isCurrent = false);
+
+    const existingIdx = devices.findIndex(d => d.fingerprint === deviceId);
+    if (existingIdx !== -1) {
+        devices[existingIdx].lastSeen  = now;
+        devices[existingIdx].isCurrent = true;
+    } else {
+        const newDevice = {
+            id: deviceId,
+            fingerprint: deviceId,
+            ...info,
+            location: '',
+            firstLogin: now,
+            lastSeen:   now,
+            isCurrent:  true,
+            isSimulated: false
+        };
+        devices.unshift(newDevice);
+    }
+
+    // Keep max 10
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(devices.slice(0, 10)));
+}
+
+function getDevices() {
+    return JSON.parse(localStorage.getItem(DEVICES_KEY)) || [];
+}
+
+window.openDevicesModal = function() {
+    const modal = document.getElementById('devicesModal');
+    if (modal) { renderDeviceList(); modal.style.display = 'flex'; }
+};
+
+window.closeDevicesModal = function() {
+    const modal = document.getElementById('devicesModal');
+    if (modal) modal.style.display = 'none';
+};
+
+// Add a simulated new device (demo button)
+window.addSimulatedDevice = function() {
+    const demos = [
+        { deviceType:'Android', deviceIcon:'fa-mobile-screen-button', browser:'Google Chrome', os:'Android', location:'Delhi, IN' },
+        { deviceType:'Desktop', deviceIcon:'fa-desktop',              browser:'Microsoft Edge',os:'Windows 10/11', location:'Hyderabad, IN' },
+        { deviceType:'Desktop', deviceIcon:'fa-desktop',              browser:'Safari',        os:'macOS', location:'Pune, IN' },
+        { deviceType:'iPhone',  deviceIcon:'fa-mobile-screen-button', browser:'Safari',        os:'iOS', location:'Kolkata, IN' },
+    ];
+    const pick = demos[Math.floor(Math.random() * demos.length)];
+    const now  = new Date();
+    const ago  = new Date(now - Math.floor(Math.random() * 5 + 1) * 24 * 60 * 60 * 1000);
+
+    let devices = getDevices();
+    devices.push({
+        id:          'sim_' + Date.now(),
+        fingerprint: 'sim_' + Math.random().toString(36).slice(2),
+        ...pick,
+        firstLogin:  ago.toISOString(),
+        lastSeen:    ago.toISOString(),
+        isCurrent:   false,
+        isSimulated: true
+    });
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(devices.slice(0, 10)));
+    renderDeviceList();
+};
+
+// Generate a fake IP for display
+function fakeIp(seed) {
+    const h = s => { let r=0; for(let i=0;i<s.length;i++) r=(r*31+s.charCodeAt(i))>>>0; return r; };
+    const n = h(seed || 'x');
+    return `${(n>>24&0x7f)+1}.${(n>>16&0xff)}.${(n>>8&0xff)}.${n&0xff}`;
+}
+
+function updateSecurityStrip(devices) {
+    const totalEl   = document.getElementById('dvTotalCount');
+    const activeEl  = document.getElementById('dvActiveCount');
+    const statusEl  = document.getElementById('dvSecurityStatus');
+    if (!totalEl) return;
+
+    const total   = devices.length;
+    const active  = devices.filter(d => d.isCurrent).length;
+    const now     = Date.now();
+    const oldDays = 30 * 24 * 60 * 60 * 1000;
+    const suspicious = devices.filter(d => !d.isCurrent && (now - new Date(d.lastSeen)) > oldDays);
+
+    totalEl.textContent  = `${total} Device${total !== 1 ? 's' : ''}`;
+    activeEl.textContent = `${active} Active`;
+
+    if (suspicious.length > 0) {
+        statusEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger);"></i> <span style="color:var(--danger);">${suspicious.length} Suspicious</span>`;
+    } else {
+        statusEl.innerHTML = `<i class="fa-solid fa-lock" style="color:var(--success);"></i> <span>Account Secure</span>`;
+    }
+}
+
+function renderDeviceList() {
+    const container = document.getElementById('devicesList');
+    if (!container) return;
+    const devices = getDevices();
+
+    updateSecurityStrip(devices);
+
+    if (devices.length === 0) {
+        container.innerHTML = `
+          <div class="dv-empty-state">
+            <i class="fa-solid fa-laptop-slash"></i>
+            <p>No login history found.</p>
+          </div>`;
+        return;
+    }
+
+    // Sort: current first, then by lastSeen desc
+    const sorted = [...devices].sort((a, b) => {
+        if (a.isCurrent) return -1;
+        if (b.isCurrent) return 1;
+        return new Date(b.lastSeen) - new Date(a.lastSeen);
+    });
+
+    const now     = Date.now();
+    const dayMs   = 24 * 60 * 60 * 1000;
+
+    // Group into sections
+    const groups = { current: [], recent: [], older: [] };
+    sorted.forEach(d => {
+        const age = now - new Date(d.lastSeen);
+        if (d.isCurrent)       groups.current.push(d);
+        else if (age < 7*dayMs) groups.recent.push(d);
+        else                    groups.older.push(d);
+    });
+
+    function cardHtml(d, index) {
+        const lastSeen   = new Date(d.lastSeen);
+        const firstLogin = new Date(d.firstLogin);
+        const timeAgo    = getTimeAgo(lastSeen);
+        const ip         = fakeIp(d.fingerprint || d.id);
+        const ageDays    = Math.floor((now - lastSeen) / dayMs);
+        const isSuspicious = !d.isCurrent && ageDays > 30;
+
+        const locationBadge = d.location
+            ? `<span class="dv-pill"><i class="fa-solid fa-location-dot"></i> ${d.location}</span>`
+            : '';
+        const ipBadge = `<span class="dv-pill"><i class="fa-solid fa-network-wired"></i> ${ip}</span>`;
+
+        return `
+        <div class="device-card ${d.isCurrent ? 'device-current' : ''} ${isSuspicious ? 'device-suspicious' : ''}" 
+             style="animation-delay:${index * 0.06}s">
+            <div class="device-icon-wrap ${isSuspicious ? 'icon-danger' : ''}">
+                <i class="fa-solid ${d.deviceIcon}"></i>
+            </div>
+            <div class="device-info">
+                <div class="device-name">
+                    ${d.browser}
+                    <span class="device-type-tag">${d.deviceType}</span>
+                    ${d.isCurrent ? '<span class="device-badge"><i class="fa-solid fa-circle-check"></i> This Device</span>' : ''}
+                    ${isSuspicious   ? '<span class="device-sus-tag"><i class="fa-solid fa-triangle-exclamation"></i> Suspicious</span>' : ''}
+                    ${d.isSimulated && !d.isCurrent && !isSuspicious ? '<span class="device-sim-tag">Simulated</span>' : ''}
+                </div>
+                <div class="device-meta">${d.os}</div>
+                <div class="dv-pills">
+                    ${locationBadge}
+                    ${ipBadge}
+                </div>
+                <div class="device-time">
+                    <i class="fa-solid fa-clock"></i> Last active: <strong>${timeAgo}</strong>
+                    &nbsp;•&nbsp;
+                    <i class="fa-solid fa-calendar-plus"></i> First login: ${firstLogin.toLocaleDateString()}
+                </div>
+            </div>
+            <div class="dv-card-actions">
+                ${d.isCurrent
+                    ? `<span class="device-active-dot" title="Active now"></span>`
+                    : `<button class="device-revoke-btn" onclick="revokeDevice('${d.id}')" title="Sign out this device">
+                           <i class="fa-solid fa-ban"></i>
+                       </button>`
+                }
+            </div>
+        </div>`;
+    }
+
+    let html = '';
+    let globalIdx = 0;
+
+    if (groups.current.length) {
+        html += `<div class="dv-group-label"><i class="fa-solid fa-wifi"></i> Active Now</div>`;
+        html += groups.current.map(d => cardHtml(d, globalIdx++)).join('');
+    }
+    if (groups.recent.length) {
+        html += `<div class="dv-group-label"><i class="fa-solid fa-clock-rotate-left"></i> Recent (last 7 days)</div>`;
+        html += groups.recent.map(d => cardHtml(d, globalIdx++)).join('');
+    }
+    if (groups.older.length) {
+        html += `<div class="dv-group-label"><i class="fa-solid fa-calendar-xmark"></i> Older</div>`;
+        html += groups.older.map(d => cardHtml(d, globalIdx++)).join('');
+    }
+
+    container.innerHTML = html;
+}
+
+function getTimeAgo(date) {
+    const now  = new Date();
+    const diff = Math.floor((now - date) / 1000);
+    if (diff < 60)     return 'Just now';
+    if (diff < 3600)   return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400)  return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return date.toLocaleDateString();
+}
+
+window.revokeDevice = function(id) {
+    if (!confirm('Sign out and remove this device from login history?')) return;
+    let devices = getDevices().filter(d => d.id !== id);
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(devices));
+    renderDeviceList();
+};
+
+window.clearAllDevices = function() {
+    if (!confirm('Clear all other login history? Only this device will remain.')) return;
+    let devices = getDevices().filter(d => d.isCurrent);
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(devices));
+    renderDeviceList();
+};
+
+window.signOutAllOtherDevices = function() {
+    if (!confirm('Sign out of all other devices? This device will remain active.')) return;
+    let devices = getDevices().filter(d => d.isCurrent);
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(devices));
+    renderDeviceList();
+    // Flash security strip green
+    const strip = document.getElementById('dvSecurityStrip');
+    if (strip) {
+        strip.style.borderColor = 'var(--success)';
+        strip.style.boxShadow = '0 0 12px rgba(16,185,129,0.3)';
+        setTimeout(() => { strip.style.borderColor = ''; strip.style.boxShadow = ''; }, 1500);
+    }
+};
+
+
+
 
 // Auth & Lock Elements
 const lockScreen = document.getElementById('lockScreen');
@@ -60,6 +605,8 @@ const displayAvatar = document.getElementById('displayAvatar');
 const themeToggle = document.getElementById('themeToggle');
 const accentColorPicker = document.getElementById('accentColorPicker');
 const familyToggle = document.getElementById('familyToggle');
+const hapticToggle = document.getElementById('hapticToggle');
+const soundToggle = document.getElementById('soundToggle');
 const familyMemberManager = document.getElementById('familyMemberManager');
 const newMemberInput = document.getElementById('newMemberInput');
 const addMemberBtn = document.getElementById('addMemberBtn');
@@ -259,18 +806,22 @@ function initAuthScreen() {
     const authScreen  = document.getElementById('authScreen');
     const appContainer = document.getElementById('appContainer');
     const account = getAccount();
+    const isRemembered = localStorage.getItem('epro_remembered') === 'true';
 
     if (!authScreen) {
-        // No auth screen in DOM, fall through
         initAuth(); updateUI();
         return;
     }
 
+    if (account && isRemembered) {
+        // Auto-login
+        enterApp();
+        return;
+    }
+
     if (account) {
-        // Returning user — show login tab
         switchAuthTab('login');
     } else {
-        // First time — show signup tab
         switchAuthTab('signup');
     }
 
@@ -281,6 +832,7 @@ function initAuthScreen() {
 function enterApp() {
     const authScreen = document.getElementById('authScreen');
     if (authScreen) authScreen.style.display = 'none';
+    registerDevice();  // always record this device on entry
     initAuth();   // handles PIN lock screen
     updateUI();
 }
@@ -324,9 +876,15 @@ window.handleLogin = function(e) {
     }
 
     loginError.style.display = 'none';
+    
+    // Remember me logic
+    const keepIn = document.getElementById('loginKeepIn').checked;
+    localStorage.setItem('epro_remembered', keepIn);
+
     // Set userName so the app shows the right name
     userName = account.displayName || account.username;
     localStorage.setItem('userName', userName);
+    registerDevice();
     enterApp();
 };
 
@@ -351,10 +909,15 @@ window.handleSignup = function(e) {
     const account = { displayName, username, password: hashPassword(password) };
     localStorage.setItem(AUTH_KEY, JSON.stringify(account));
 
+    // Remember me logic
+    const keepIn = document.getElementById('signupKeepIn').checked;
+    localStorage.setItem('epro_remembered', keepIn);
+
     // Set user display name
     userName = displayName;
     localStorage.setItem('userName', userName);
     signupError.style.display = 'none';
+    registerDevice();
     enterApp();
 };
 
@@ -372,6 +935,7 @@ window.togglePasswordVisibility = function(inputId, btn) {
 
 window.logoutUser = function() {
     if (!confirm('Log out of ExpensePro?')) return;
+    localStorage.setItem('epro_remembered', 'false');
     const authScreen   = document.getElementById('authScreen');
     const appContainer = document.getElementById('appContainer');
     if (appContainer) appContainer.style.display = 'none';
@@ -380,7 +944,9 @@ window.logoutUser = function() {
 
 // Initial Call
 document.addEventListener('DOMContentLoaded', () => {
-    handleLoading();
+    restoreFromIndexedDB().then(() => {
+        handleLoading();
+    });
 
     // Live Date & Time on Dashboard
     const dashboardDate = document.getElementById('dashboardDate');
@@ -409,6 +975,7 @@ function updateUI() {
     
     // Save to local storage
     localStorage.setItem('transactions', JSON.stringify(transactions));
+    syncToIndexedDB(); // Mirror to IndexedDB
 }
 
 function updateBalance() {
@@ -617,6 +1184,8 @@ function openEditModal(id) {
 function deleteTransaction(id) {
     if (confirm("Are you sure you want to delete this? If this is a recurring subscription, all future automated entries will stop.")) {
         transactions = transactions.filter(t => t.id !== id);
+        triggerHaptic(20);
+        playSound('success');
         updateUI();
         if (subscriptionsView.style.display !== 'none') renderSubscriptions();
     }
@@ -631,6 +1200,7 @@ function addTransaction(e) {
     const description = document.getElementById('description').value;
     
     if (isNaN(amount) || amount <= 0) {
+        playSound('error');
         alert("Please enter a valid amount");
         return;
     }
@@ -689,6 +1259,9 @@ function addTransaction(e) {
     document.getElementById('typeExpense').checked = true; // reset to expense default
     closeModalBtn.click();
     
+    triggerHaptic(20);
+    playSound('success');
+
     updateUI();
     if (subscriptionsView.style.display !== 'none') renderSubscriptions();
 }
@@ -865,6 +1438,8 @@ function openSettings() {
     if(themeToggle) themeToggle.checked = isDarkMode;
     if(accentColorPicker) accentColorPicker.value = accentColor;
     if(familyToggle) familyToggle.checked = isFamilyMode;
+    if(hapticToggle) hapticToggle.checked = isHapticsEnabled;
+    if(soundToggle)  soundToggle.checked  = isSoundEnabled;
     renderMemberList();
 
     if(pinToggle) {
@@ -949,6 +1524,16 @@ if (saveSettingsBtn) {
             isFamilyMode = familyToggle.checked;
             localStorage.setItem('isFamilyMode', isFamilyMode);
             localStorage.setItem('familyMembers', JSON.stringify(familyMembers));
+        }
+
+        // Save Feedback Settings
+        if (hapticToggle) {
+            isHapticsEnabled = hapticToggle.checked;
+            localStorage.setItem('isHapticsEnabled', isHapticsEnabled);
+        }
+        if (soundToggle) {
+            isSoundEnabled = soundToggle.checked;
+            localStorage.setItem('isSoundEnabled', isSoundEnabled);
         }
 
         applyTheme();

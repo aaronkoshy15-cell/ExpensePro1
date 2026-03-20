@@ -1538,4 +1538,379 @@ input:checked + .slider:before { transform: translateX(22px); }
     right: 1.5rem;
   }
 }
+/* =====================================================
+   LOGIN DEVICES MODAL — Improved
+   ===================================================== */
+
+/* Modal container */
+.devices-modal {
+  width: 95%;
+  max-width: 620px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  animation: authCardIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Header row */
+.devices-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.dv-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.dv-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--card-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: white;
+  box-shadow: 0 4px 16px var(--accent-glow);
+  flex-shrink: 0;
+}
+
+/* Security summary strip */
+.dv-security-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.dv-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.dv-stat-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--panel-border);
+  margin: 0 1rem;
+}
+
+/* Device list scroll area */
+.devices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Section group labels */
+.dv-group-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  padding: 0.75rem 0.25rem 0.35rem;
+}
+
+/* Device card */
+@keyframes dv-card-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  animation: dv-card-in 0.3s ease both;
+}
+
+.device-card:hover {
+  background: rgba(255,255,255,0.07);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.device-card.device-current {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color), 0 4px 20px var(--accent-glow);
+}
+
+.device-card.device-suspicious {
+  border-color: rgba(239,68,68,0.5);
+  box-shadow: 0 0 0 1px rgba(239,68,68,0.3);
+}
+
+/* Device icon */
+.device-icon-wrap {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: var(--card-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px var(--accent-glow);
+  transition: box-shadow 0.2s;
+}
+
+.device-icon-wrap.icon-danger {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+}
+
+.device-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+
+.device-type-tag {
+  font-size: 0.68rem;
+  background: rgba(255,255,255,0.08);
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.device-badge {
+  font-size: 0.68rem;
+  background: var(--accent-color);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.device-sim-tag {
+  font-size: 0.65rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-secondary);
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.device-sus-tag {
+  font-size: 0.65rem;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.35);
+  color: var(--danger);
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.device-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
+
+/* IP / Location pills row */
+.dv-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.dv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 2px 9px;
+  color: var(--text-secondary);
+}
+
+.device-time {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  opacity: 0.7;
+}
+
+.device-time strong {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+/* Actions column */
+.dv-card-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
+.device-revoke-btn {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  color: var(--danger);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.device-revoke-btn:hover {
+  background: rgba(239,68,68,0.2);
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(239,68,68,0.25);
+}
+
+.device-active-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  flex-shrink: 0;
+  animation: pulse-dot 2s ease infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 6px var(--success); }
+  50%       { box-shadow: 0 0 16px var(--success); }
+}
+
+/* Footer */
+.dv-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--panel-border);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dv-footer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.83rem;
+  font-family: var(--font-family);
+  font-weight: 500;
+  padding: 0.5rem 1.1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.dv-btn-ghost {
+  background: rgba(255,255,255,0.05);
+  border-color: var(--panel-border);
+  color: var(--text-secondary);
+}
+
+.dv-btn-ghost:hover {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-primary);
+}
+
+.dv-btn-warning {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.3);
+  color: var(--danger);
+}
+
+.dv-btn-warning:hover {
+  background: rgba(239,68,68,0.16);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239,68,68,0.2);
+}
+
+/* Empty state */
+.dv-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.dv-empty-state i {
+  font-size: 2.5rem;
+}
+
+/* Light theme overrides */
+body.light-theme .device-card { background: rgba(0,0,0,0.02); }
+body.light-theme .dv-security-strip { background: rgba(0,0,0,0.025); }
+body.light-theme .dv-pill { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.07); }
+
+@media (max-width: 600px) {
+  .devices-modal { padding: 1.25rem; }
+  .dv-security-strip { flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
+  .dv-stat-divider { width: 100%; height: 1px; margin: 0; }
+  .device-card { flex-wrap: wrap; }
+}
 

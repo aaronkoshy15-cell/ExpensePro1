@@ -147,6 +147,38 @@ const categoryIcons = {
 };
 
 // Functions
+function handleLoading() {
+    const loader = document.getElementById('loadingScreen');
+    const progress = document.getElementById('loadingProgress');
+    
+    if (!loader || !progress) return;
+
+    let width = 0;
+    const interval = setInterval(() => {
+        if (width >= 100) {
+            clearInterval(interval);
+            setTimeout(() => {
+                loader.classList.add('fade-out');
+                // Initialize Auth after loading
+                initAuth();
+                updateUI();
+                applyTheme();
+            }, 500);
+        } else {
+            // Faster at beginning, slower at end for natural feel
+            const increment = Math.max(0.5, (100 - width) / 10);
+            width += increment;
+            if (width > 100) width = 100;
+            progress.style.width = width + '%';
+        }
+    }, 50);
+}
+
+// Initial Call
+document.addEventListener('DOMContentLoaded', () => {
+    handleLoading();
+});
+
 function updateUI() {
     renderTransactions();
     updateBalance();
@@ -1243,7 +1275,4 @@ const currencySelector = document.getElementById('currencySelector');
 if (currencySelector) {
     currencySelector.value = currentCurrency;
 }
-applyTheme();
 processRecurringExpenses();
-updateUI();
-initAuth();

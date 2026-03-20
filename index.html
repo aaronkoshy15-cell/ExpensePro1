@@ -18,6 +18,20 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <h1 class="loading-title">ExpensePro</h1>
+            <div class="loading-bar-container">
+                <div class="loading-bar" id="loadingProgress"></div>
+            </div>
+            <p class="loading-text">Securing your finances...</p>
+        </div>
+    </div>
+
     <!-- Lock Screen -->
     <div class="lock-screen" id="lockScreen" style="display: none;">
         <div class="lock-panel glass-panel">

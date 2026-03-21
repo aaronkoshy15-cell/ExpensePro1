@@ -11,8 +11,6 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="styles.css">
-    <!-- i18n -->
-    <script src="i18n.js"></script>
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- PDF Export Libraries -->
@@ -150,6 +148,60 @@
         </div>
     </div>
 
+    <!-- Scan Bill Modal -->
+    <div id="scanBillModal" class="modal-overlay">
+        <div class="modal-content glass-panel" style="max-width: 500px;">
+            <div class="modal-header">
+                <div class="header-icon"><i class="fa-solid fa-expand"></i></div>
+                <h2>Scan Your Bill</h2>
+                <button class="close-btn" onclick="closeModal('scanBillModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="scan-area" id="scanArea">
+                    <div class="scan-frame">
+                        <div class="corner top-left"></div>
+                        <div class="corner top-right"></div>
+                        <div class="corner bottom-left"></div>
+                        <div class="corner bottom-right"></div>
+                        <div id="scanningLine" class="scan-line"></div>
+                        
+                        <video id="videoPreview" autoplay playsinline style="display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 8px;"></video>
+                        <canvas id="captureCanvas" style="display: none;"></canvas>
+                        
+                        <div class="scan-instructions" id="scanInstructions">
+                            <i class="fa-solid fa-camera"></i>
+                            <p>Upload a receipt or snap a photo</p>
+                        </div>
+                        <img id="receiptPreview" src="" alt="Receipt Preview" style="display: none;">
+                        <div id="shutterFlash" class="shutter-flash"></div>
+                    </div>
+                </div>
+
+                <div class="scan-actions" id="scanActionsGroup">
+                    <div class="main-actions" id="initScanActions">
+                        <button class="btn-primary" onclick="startCamera()" style="flex: 1;">
+                            <i class="fa-solid fa-video"></i> Switch to Camera
+                        </button>
+                        <button class="btn-primary" onclick="document.getElementById('receiptInput').click()" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--panel-border); box-shadow: none;">
+                            <i class="fa-solid fa-file-arrow-up"></i> Upload
+                        </button>
+                    </div>
+                    
+                    <div class="camera-actions" id="activeCameraActions" style="display: none; width: 100%; gap: 1rem;">
+                        <button id="captureBtn" class="btn-primary" onclick="capturePhoto()" style="flex: 1; background: var(--accent-color);">
+                            <i class="fa-solid fa-circle-dot"></i> Snapshot
+                        </button>
+                        <button class="btn-primary" onclick="stopCamera()" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--panel-border); box-shadow: none;">
+                            <i class="fa-solid fa-xmark"></i> Close Camera
+                        </button>
+                    </div>
+                    
+                    <input type="file" id="receiptInput" accept="image/*" style="display: none;" onchange="handleReceiptUpload(event)">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container" id="appContainer">
         <!-- Sidebar Navigation (Desktop) / Bottom Nav (Mobile) -->
         <nav class="sidebar glass-panel">
@@ -158,29 +210,45 @@
                 <h2>ExpensePro</h2>
             </div>
             <ul class="nav-links">
-                <li class="active" data-target="dashboard"><i class="fa-solid fa-chart-pie"></i> <span>Dashboard</span></li>
-                <li data-target="analytics"><i class="fa-solid fa-chart-simple"></i> <span>Analytics</span></li>
-                <li data-target="subscriptions"><i class="fa-solid fa-calendar-days"></i> <span>Subscriptions</span></li>
-                <li id="openFeedbackBtn" onclick="openFeedbackModal()"><i class="fa-solid fa-comment-dots"></i> <span>Feedback</span></li>
-                <li id="openSettingsBtn" data-target="settings"><i class="fa-solid fa-gear"></i> <span>Settings</span></li>
+                <li class="active" data-target="dashboard"><i class="fa-solid fa-grip"></i> <span data-i18n="navDashboard">Dashboard</span></li>
+                <li data-target="analytics"><i class="fa-solid fa-arrow-trend-up"></i> <span data-i18n="navAnalytics">Analytics</span></li>
+                <li data-target="subscriptions"><i class="fa-solid fa-calendar-check"></i> <span data-i18n="navSubs">Subscriptions</span></li>
+                <li id="openFeedbackBtn" onclick="openFeedbackModal()"><i class="fa-solid fa-comment-dots"></i> <span data-i18n="navFeedback">Feedback</span></li>
+                <li id="openSettingsBtn" data-target="settings"><i class="fa-solid fa-sliders"></i> <span data-i18n="navSettings">Settings</span></li>
             </ul>
-            <div class="user-profile" id="userProfileBtn" style="cursor: pointer;" title="Open Profile Settings">
-                <div class="avatar-wrapper" id="sidebarAvatarWrapper" title="Click to change photo">
-                    <img src="https://api.dicebear.com/7.x/notionists/svg?seed=User" alt="User Avatar" class="avatar" id="displayAvatar">
-                    <div class="avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+
+            <div class="user-profile-wrapper">
+                <div class="user-profile" onclick="openSettings()">
+                    <div class="avatar-wrapper">
+                        <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop" alt="User" class="avatar" id="displayAvatar">
+                        <div class="avatar-overlay"><i class="fa-solid fa-camera"></i></div>
+                        <input type="file" id="avatarInput" hidden accept="image/*">
+                    </div>
+                    <div class="user-info">
+                        <p class="user-name" id="displayUsername">Aaron</p>
+                        <p class="user-status">Premium Plan</p>
+                    </div>
                 </div>
-                <span class="username" id="displayUsername">User</span>
+                <div class="sidebar-more-container">
+                    <button id="sidebarMoreBtn" class="sidebar-more-btn" onclick="toggleSidebarMoreMenu(event)">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
+                    <div id="sidebarMoreDropdown" class="sidebar-more-dropdown glass-panel">
+                        <div class="more-dropdown-item" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Export Data</div>
+                        <div class="more-dropdown-item" onclick="document.getElementById('importFile').click()"><i class="fa-solid fa-file-import"></i> Import Data</div>
+                        <div class="divider"></div>
+                        <div class="more-dropdown-item logout" onclick="logoutUser()"><i class="fa-solid fa-right-from-bracket"></i> Logout</div>
+                    </div>
+                </div>
             </div>
-            <!-- Hidden file input for avatar upload -->
-            <input type="file" id="avatarFileInput" accept="image/*" style="display:none;">
         </nav>
 
         <!-- Main Content Area -->
         <main class="main-content" id="dashboard">
             <header class="top-header">
                 <div class="header-text">
-                    <h1>Dashboard</h1>
-                    <p class="subtitle">Welcome back! Track your daily expenses.</p>
+                    <h1 data-i18n="dashTitle">Dashboard</h1>
+                    <p class="subtitle" data-i18n="dashSubtitle">Welcome back! Track your daily expenses.</p>
                     <p id="dashboardDate" class="dashboard-date"></p>
                 </div>
                 <div class="header-actions">
@@ -193,8 +261,15 @@
                         <option value="AUD">🇦🇺 AUD ($)</option>
                         <option value="CAD">🇨🇦 CAD ($)</option>
                     </select>
+                    <button class="btn-primary" onclick="openModal('aiAssistantModal')" id="aiLauncherBtn" style="background: linear-gradient(135deg, #6366f1, #a855f7); color: white; border: none; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); min-width: 44px; padding: 0;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <div class="ai-glow"></div>
+                    </button>
+                    <button class="btn-primary" onclick="openScanModal()" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--panel-border); box-shadow: none;">
+                        <i class="fa-solid fa-expand"></i> <span data-i18n="scanBill">Scan Bill</span>
+                    </button>
                     <button class="btn-primary" onclick="openModal()">
-                        <i class="fa-solid fa-plus"></i> Add Expense
+                        <i class="fa-solid fa-plus"></i> <span data-i18n="newRecord">Add Expense</span>
                     </button>
                     <div class="notification-wrapper">
                         <button class="btn-text" id="notiBellBtn" title="Notifications">
@@ -215,6 +290,19 @@
                     <button class="btn-text" id="shareAppBtn" style="padding: 0.5rem; color: var(--accent-color); font-size: 1.25rem;" title="Share App">
                         <i class="fa-solid fa-share-nodes"></i>
                     </button>
+                    <!-- More Options 3-Dot Menu -->
+                    <div class="more-menu-container" style="position: relative;">
+                        <button class="btn-text" id="moreMenuBtn" onclick="toggleMoreMenu(event)" style="padding: 0.5rem; color: var(--accent-color); font-size: 1.25rem;" title="More Options">
+                            <i class="fa-solid fa-ellipsis-vertical"></i>
+                        </button>
+                        <div id="moreDropdown" class="more-dropdown glass-panel">
+                            <div class="more-dropdown-item" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Export Data</div>
+                            <div class="more-dropdown-item" onclick="document.getElementById('importFile').click()"><i class="fa-solid fa-file-import"></i> Import Data</div>
+                            <div class="divider"></div>
+                            <div class="more-dropdown-item" onclick="openSettings()"><i class="fa-solid fa-gear"></i> App Settings</div>
+                            <div class="more-dropdown-item logout" onclick="logoutUser()"><i class="fa-solid fa-right-from-bracket"></i> Logout</div>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -225,8 +313,8 @@
                         <i class="fa-solid fa-chart-line"></i>
                     </div>
                     <div class="summary-info">
-                        <span class="summary-label">Net Monthly</span>
-                        <h3 id="netMonthlyEl" class="sensitive-amount">$0.00</h3>
+                        <span class="summary-label" data-i18n="netMonthly">Net Monthly</span>
+                        <h3 id="netMonthlyEl">$0.00</h3>
                         <span class="summary-trend trend-up" id="netTrendEl"><i class="fa-solid fa-arrow-up"></i> 0%</span>
                     </div>
                 </div>
@@ -235,7 +323,7 @@
                         <i class="fa-solid fa-piggy-bank"></i>
                     </div>
                     <div class="summary-info">
-                        <span class="summary-label">Goal Progress</span>
+                        <span class="summary-label" data-i18n="goalProgress">Goal Progress</span>
                         <h3 id="summaryGoalPct">0%</h3>
                         <div class="summary-mini-progress"><div id="summaryGoalBar" style="width: 0%"></div></div>
                     </div>
@@ -245,7 +333,7 @@
                         <i class="fa-solid fa-heart-pulse"></i>
                     </div>
                     <div class="summary-info">
-                        <span class="summary-label">Budget Health</span>
+                        <span class="summary-label" data-i18n="budgetHealth">Budget Health</span>
                         <h3 id="budgetHealthStatus">Healthy</h3>
                         <span class="summary-tag" id="budgetUsageTag">0% Used</span>
                     </div>
@@ -255,7 +343,7 @@
                         <i class="fa-solid fa-calendar-check"></i>
                     </div>
                     <div class="summary-info">
-                        <span class="summary-label">Next Major Bill</span>
+                        <span class="summary-label" data-i18n="nextBill">Next Major Bill</span>
                         <h3 id="nextMajorBill">None</h3>
                         <span class="summary-tag" id="daysToBill">N/A</span>
                     </div>
@@ -279,17 +367,20 @@
                             </div>
 
                             <div class="card-balance">
-                                <p class="balance-label" style="display: flex; align-items: center; justify-content: space-between;">
-                                    Total Balance
-                                    <button class="btn-text" id="toggleBalanceBtn" style="padding:0; color:inherit; opacity:0.7;">
-                                        <i class="fa-solid fa-eye" id="balanceEyeIcon"></i>
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+                                    <p class="balance-label" data-i18n="totalBalance">Total Balance</p>
+                                    <button type="button" class="btn-text" id="toggleBalanceBtn" onclick="toggleBalanceVisibility(event)" title="Hide/Show Balance" style="padding: 4px; color: rgba(255,255,255,0.6); font-size: 0.9rem; background: transparent; border: none; cursor: pointer;">
+                                        <i class="fa-solid fa-eye"></i>
                                     </button>
-                                </p>
-                                <h2 id="totalBalance" class="sensitive-amount">$0.00</h2>
+                                </div>
+                                <h2 id="totalBalance">$0.00</h2>
                             </div>
                             
                             <div class="card-footer">
-                                <div class="footer-left"></div>
+                                <div class="footer-left">
+                                    <span class="card-label" data-i18n="cardHolder">CARD HOLDER</span>
+                                    <span class="card-holder-name" id="displayCardholder">User Name</span>
+                                </div>
                                 <i class="fa-brands fa-cc-visa card-network-logo"></i>
                             </div>
                             <button class="card-share-btn" id="shareCardBtn" title="Share My Card">
@@ -335,14 +426,14 @@
                         <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
                         <div class="stat-details">
                             <p>Income</p>
-                            <h3 id="totalIncome" class="text-green sensitive-amount">$0.00</h3>
+                            <h3 id="totalIncome" class="text-green">$0.00</h3>
                         </div>
                     </div>
                     <div class="stat-box expense">
                         <div class="stat-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
                         <div class="stat-details">
                             <p>Expenses</p>
-                            <h3 id="totalExpense" class="text-red sensitive-amount">$0.00</h3>
+                            <h3 id="totalExpense" class="text-red">$0.00</h3>
                         </div>
                     </div>
                 </section>
@@ -495,12 +586,12 @@
                 <div class="subscription-kpis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; width: 100%; margin-top: 2rem;">
                     <div class="stat-card glass-panel" style="padding: 1.25rem;">
                         <span class="summary-label">Monthly Burn</span>
-                        <h3 id="totalBurnAmount" style="font-size: 1.5rem; color: var(--danger);" class="sensitive-amount">$0.00</h3>
+                        <h3 id="totalBurnAmount" style="font-size: 1.5rem; color: var(--danger);">$0.00</h3>
                         <span class="summary-tag">Recurrent</span>
                     </div>
                     <div class="stat-card glass-panel" style="padding: 1.25rem;">
                         <span class="summary-label">Yearly Projected</span>
-                        <h3 id="yearlyProjectedAmount" style="font-size: 1.5rem; color: var(--accent-color);" class="sensitive-amount">$0.00</h3>
+                        <h3 id="yearlyProjectedAmount" style="font-size: 1.5rem; color: var(--accent-color);">$0.00</h3>
                         <span class="summary-tag">Estimate</span>
                     </div>
                     <div class="stat-card glass-panel" style="padding: 1.25rem;">
@@ -568,7 +659,7 @@
                 <div class="stat-card glass-panel">
                     <div class="stat-icon-mini"><i class="fa-solid fa-calendar-day"></i></div>
                     <span class="stat-label">Daily Average</span>
-                    <h3 id="avgDailySpend" class="sensitive-amount">$0</h3>
+                    <h3 id="avgDailySpend">$0</h3>
                     <span id="avgCompare" class="stat-compare">-- vs last month</span>
                 </div>
                 <div class="stat-card glass-panel">
@@ -580,13 +671,13 @@
                 <div class="stat-card glass-panel">
                     <div class="stat-icon-mini"><i class="fa-solid fa-rocket"></i></div>
                     <span class="stat-label">Projected Total</span>
-                    <h3 id="analyticsProjectedTotal" class="sensitive-amount">$0</h3>
+                    <h3 id="analyticsProjectedTotal">$0</h3>
                     <span id="projectedCompare" class="stat-compare">-- vs last month</span>
                 </div>
                 <div class="stat-card glass-panel" style="border: 1px solid var(--success); background: rgba(16, 185, 129, 0.05);">
                     <div class="stat-icon-mini" style="background: var(--success);"><i class="fa-solid fa-shield-halved"></i></div>
                     <span class="stat-label">Safe to Spend Today</span>
-                    <h3 id="dailySafeSpend" class="sensitive-amount">$0</h3>
+                    <h3 id="dailySafeSpend">$0</h3>
                     <span class="stat-compare">Daily allowance</span>
                 </div>
             </div>
@@ -729,31 +820,32 @@
                     <button class="close-btn" id="closeSettingsBtn"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 <div class="settings-content scrollable-content">
-                    <div class="form-group" style="text-align: left;">
-                        <label>Preferred Currency</label>
-                        <select id="currencySelect">
-                            <option value="USD">USD ($)</option>
-                            <option value="EUR">EUR (€)</option>
-                            <option value="GBP">GBP (£)</option>
-                            <option value="JPY">JPY (¥)</option>
-                            <option value="CAD">CAD (C$)</option>
-                            <option value="AUD">AUD (A$)</option>
-                            <option value="CHF">CHF (Fr)</option>
-                            <option value="CNY">CNY (¥)</option>
-                            <option value="INR">INR (₹)</option>
-                            <option value="BRL">BRL (R$)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="text-align: left;">
-                        <label>App Language</label>
-                        <select id="languageSelect" onchange="changeLanguage(this.value)">
-                            <option value="en">English</option>
-                            <option value="es">Español</option>
-                            <option value="fr">Français</option>
-                            <option value="hi">हिंदी</option>
-                            <option value="zh">中文</option>
-                        </select>
-                    </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" style="text-align: left;">
+                                <label data-i18n="prefCurrency">Preferred Currency</label>
+                                <select id="currencySelect">
+                                    <option value="USD">USD ($)</option>
+                                    <option value="EUR">EUR (€)</option>
+                                    <option value="GBP">GBP (£)</option>
+                                    <option value="JPY">JPY (¥)</option>
+                                    <option value="CAD">CAD (C$)</option>
+                                    <option value="AUD">AUD (A$)</option>
+                                    <option value="CHF">CHF (Fr)</option>
+                                    <option value="CNY">CNY (¥)</option>
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="BRL">BRL (R$)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="text-align: left;">
+                                <label data-i18n="prefLanguage">Preferred Language</label>
+                                <select id="languageSelect" onchange="changeLanguage(this.value)">
+                                    <option value="en">🇺🇸 English (US)</option>
+                                    <option value="es">🇪🇸 Español (ES)</option>
+                                    <option value="hi">🇮🇳 हिन्दी (IN)</option>
+                                    <option value="ml">🇮🇳 മലയാളം (IN)</option>
+                                </select>
+                            </div>
+                        </div>
                     <!-- Profile Box -->
                     <div class="settings-box">
                         <h3 class="box-title"><i class="fa-solid fa-user"></i> Profile Settings</h3>
@@ -802,22 +894,11 @@
                         <h3 class="box-title"><i class="fa-solid fa-palette"></i> Appearance</h3>
                         <div class="setting-item" style="border-bottom: none; padding-top: 0;">
                             <div class="setting-info">
-                                <h3 style="font-size: 1rem;">App Theme</h3>
-                                <p>System, Dark, or Light Mode</p>
-                            </div>
-                            <select id="themeSelect" class="currency-dropdown" style="width: 110px;">
-                                <option value="system">System</option>
-                                <option value="dark">Dark</option>
-                                <option value="light">Light</option>
-                            </select>
-                        </div>
-                        <div class="setting-item" id="oledGroup">
-                            <div class="setting-info">
-                                <h3 style="font-size: 1rem;">Pure Black (OLED)</h3>
-                                <p>Save battery on OLED displays</p>
+                                <h3 style="font-size: 1rem;">Dark Mode</h3>
+                                <p>Switch between Dark and Light theme</p>
                             </div>
                             <label class="switch">
-                                <input type="checkbox" id="oledToggle">
+                                <input type="checkbox" id="themeToggle" checked>
                                 <span class="slider round"></span>
                             </label>
                         </div>
@@ -898,6 +979,21 @@
                         </button>
                     </div>
 
+                    <!-- Privacy Box -->
+                    <div class="settings-box">
+                        <h3 class="box-title"><i class="fa-solid fa-eye-slash"></i> Privacy Settings</h3>
+                        <div class="setting-item" style="border-bottom: none; padding-top: 0;">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Hide Balance</h3>
+                                <p>Obfuscate balance details on dashboard</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="hideBalanceToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Data Management Box -->
                     <div class="settings-box">
                         <h3 class="box-title"><i class="fa-solid fa-database"></i> Data & Backup</h3>
@@ -914,9 +1010,7 @@
                     </div>
 
 
-                    <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1.5rem; padding: 1rem; font-size: 1.05rem; justify-content: center; background: var(--card-gradient); box-shadow: 0 8px 25px var(--accent-glow); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; transition: all 0.3s ease;">
-                        <i class="fa-solid fa-floppy-disk" style="margin-right: 0.5rem;"></i> Save & Apply Changes
-                    </button>
+                    <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1rem;">Save All Settings</button>
                     <div style="margin-top: 1.5rem; display:flex; justify-content:center; gap:1.5rem; flex-wrap:wrap;">
                         <button onclick="logoutUser()" class="btn-text" style="color: var(--accent-color);"><i class="fa-solid fa-right-from-bracket"></i> Log Out</button>
                         <button id="resetAppBtn" class="btn-text" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Erase Profile &amp; Data</button>
@@ -1111,5 +1205,40 @@
     </div>
 
     <script src="app.js"></script>
+
+    <!-- AI Assistant Modal -->
+    <div class="modal-overlay" id="aiAssistantModal">
+        <div class="modal glass-panel ai-chat-modal">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="ai-avatar-mini">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h2 data-i18n="aiTitle">ExpensePro AI</h2>
+                        <span class="ai-status" data-i18n="aiOnline">Online & Learning</span>
+                    </div>
+                </div>
+                <button class="close-btn" id="closeAIBtn" onclick="closeModal('aiAssistantModal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="ai-chat-body" id="aiChatBody">
+                <div class="ai-msg bot">
+                    <p data-i18n="aiWelcome">Hello! I'm your ExpensePro AI. I can analyze your spending or set bill reminders for you. Try saying "Remind me to pay my electricity bill on March 25th".</p>
+                </div>
+            </div>
+            <div class="ai-chat-footer">
+                <div class="ai-input-group">
+                    <input type="text" id="aiInput" placeholder="Ask me anything..." onkeypress="handleAIPress(event)">
+                    <button class="ai-send-btn" onclick="sendMessageToAI()">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="ai-quick-actions">
+                    <button onclick="quickAIQuery('Analyze my month')" data-i18n="aiQuickAnalyze">Analyze Month</button>
+                    <button onclick="quickAIQuery('Any upcoming bills?')" data-i18n="aiQuickBills">Upcoming Bills</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

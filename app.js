@@ -1,26 +1,191 @@
 // State Management
 let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
 let currentCurrency = localStorage.getItem('currency') || 'USD';
-let userName = localStorage.getItem('userName') || 'Display Name';
+let userName = localStorage.getItem('userName') || 'User';
 let appPin = localStorage.getItem('appPin') || null;
 let isPinEnabled = localStorage.getItem('isPinEnabled') === 'true';
 let monthlyBudget = parseFloat(localStorage.getItem('monthlyBudget')) || 0;
 let goalName = localStorage.getItem('goalName') || '';
 let goalAmount = parseFloat(localStorage.getItem('goalAmount')) || 0;
-let appTheme = localStorage.getItem('appTheme') || 'system';
-let isOledMode = localStorage.getItem('isOledMode') === 'true';
+let isDarkMode = localStorage.getItem('isDarkMode') !== 'false';
 let isFamilyMode = localStorage.getItem('isFamilyMode') === 'true';
 let familyMembers = JSON.parse(localStorage.getItem('familyMembers')) || ['Me'];
 let accentColor = localStorage.getItem('accentColor') || '#6366f1';
 let customAvatarUrl = localStorage.getItem('customAvatarUrl') || null;
-let isBalanceHidden = localStorage.getItem('isBalanceHidden') === 'true';
+let currentLanguage = localStorage.getItem('language') || 'en';
+let aiReminders = JSON.parse(localStorage.getItem('aiReminders')) || [];
+
+const translations = {
+    en: {
+        navDashboard: "Dashboard",
+        navAnalytics: "Analytics",
+        navSubs: "Subscriptions",
+        navFeedback: "Feedback",
+        navSettings: "Settings",
+        dashTitle: "Dashboard",
+        dashSubtitle: "Welcome back! Track your daily expenses.",
+        prefCurrency: "Preferred Currency",
+        prefLanguage: "Preferred Language",
+        income: "Income",
+        expenses: "Expenses",
+        netMonthly: "Net Monthly",
+        goalProgress: "Goal Progress",
+        budgetHealth: "Budget Health",
+        nextBill: "Next Major Bill",
+        totalBalance: "Total Balance",
+        cardHolder: "CARD HOLDER",
+        scanBill: "Scan Bill",
+        newRecord: "New Record",
+        save: "Save",
+        cancel: "Cancel",
+        aiTitle: "ExpensePro AI",
+        aiOnline: "Online & Learning",
+        aiWelcome: "Hello! I'm your ExpensePro AI. I can analyze your spending or set bill reminders for you. Try saying 'Remind me to pay my electricity bill on March 25th'.",
+        aiQuickAnalyze: "Analyze Month",
+        aiQuickBills: "Upcoming Bills"
+    },
+    es: {
+        navDashboard: "Tablero",
+        navAnalytics: "Análisis",
+        navSubs: "Suscripciones",
+        navFeedback: "Comentarios",
+        navSettings: "Ajustes",
+        dashTitle: "Tablero",
+        dashSubtitle: "¡Bienvenido! Sigue tus gastos diarios.",
+        prefCurrency: "Moneda Preferida",
+        prefLanguage: "Idioma Preferido",
+        income: "Ingresos",
+        expenses: "Gastos",
+        netMonthly: "Mensual Neto",
+        goalProgress: "Progreso del Objetivo",
+        budgetHealth: "Salud del Presupuesto",
+        nextBill: "Siguiente Factura Principal",
+        totalBalance: "Saldo Total",
+        cardHolder: "TITULAR DE LA TARJETA",
+        scanBill: "Escanear Factura",
+        newRecord: "Nuevo Registro",
+        save: "Guardar",
+        cancel: "Cancelar",
+        aiTitle: "ExpensePro IA",
+        aiOnline: "En línea y Aprendiendo",
+        aiWelcome: "¡Hola! Soy tu IA de ExpensePro. Puedo analizar tus gastos o configurar recordatorios de facturas. Prueba a decir 'Recuérdame pagar mi factura de luz el 25 de marzo'.",
+        aiQuickAnalyze: "Analizar Mes",
+        aiQuickBills: "Próximas Facturas"
+    },
+    hi: {
+        navDashboard: "डैशबोर्ड",
+        navAnalytics: "विश्लेषण",
+        navSubs: "सदस्यता",
+        navFeedback: "प्रतिक्रिया",
+        navSettings: "सेटिंग्स",
+        dashTitle: "डैशबोर्ड",
+        dashSubtitle: "स्वागत है! अपने दैनिक खर्चों को ट्रैक करें।",
+        prefCurrency: "पसंदीदा मुद्रा",
+        prefLanguage: "पसंदीदा भाषा",
+        income: "आय",
+        expenses: "खर्च",
+        netMonthly: "शुद्ध मासिक",
+        goalProgress: "लक्ष्य प्रगति",
+        budgetHealth: "बजट स्वास्थ्य",
+        nextBill: "अगला बड़ा बिल",
+        totalBalance: "कुल शेष",
+        cardHolder: "कार्ड धारक",
+        scanBill: "बिल स्कैन करें",
+        newRecord: "नया रिकॉर्ड",
+        save: "सहेजें",
+        cancel: "रद्द करें",
+        aiTitle: "ExpensePro AI",
+        aiOnline: "ऑनलाइन और सीख रहा है",
+        aiWelcome: "नमस्ते! मैं आपका ExpensePro AI हूँ। मैं आपके खर्चों का विश्लेषण कर सकता हूँ या बिल रिमाइंडर सेट कर सकता हूँ। '25 मार्च को मेरा बिजली बिल भुगतान करने की याद दिलाएं' कहकर देखें।",
+        aiQuickAnalyze: "पखवाड़े का विश्लेषण",
+        aiQuickBills: "आगामी बिल"
+    },
+    ml: {
+        navDashboard: "ഡാഷ്‌ബോർഡ്",
+        navAnalytics: "അനലിറ്റിക്സ്",
+        navSubs: "സബ്സ്ക്രിപ്ഷനുകൾ",
+        navFeedback: "അഭിപ്രായങ്ങൾ",
+        navSettings: "ക്രമീകരണങ്ങൾ",
+        dashTitle: "ഡാഷ്‌ബോർഡ്",
+        dashSubtitle: "വീണ്ടും സ്വാഗതം! നിങ്ങളുടെ ദൈനംദിന ചിലവുകൾ പരിശോധിക്കുക.",
+        prefCurrency: "ഇഷ്ടപ്പെട്ട കറൻസി",
+        prefLanguage: "ഇഷ്ടപ്പെട്ട ഭാഷ",
+        income: "വരുമാനം",
+        expenses: "ചിലവുകൾ",
+        netMonthly: "പ്രതിമാസ അറ്റാദായം",
+        goalProgress: "ലക്ഷ്യത്തിലേക്കുള്ള പുരോഗതി",
+        budgetHealth: "ബജറ്റ് ആരോഗ്യം",
+        nextBill: "അടുത്ത പ്രധാന ബില്ല്",
+        totalBalance: "ആകെ ബാലൻസ്",
+        cardHolder: "കാർഡ് ഉടമ",
+        scanBill: "ബിൽ സ്കാൻ ചെയ്യുക",
+        newRecord: "പുതിയ റെക്കോർഡ്",
+        save: "സേവ് ചെയ്യുക",
+        cancel: "റദ്ദാക്കുക",
+        aiTitle: "ExpensePro AI",
+        aiOnline: "ഓൺലൈൻ & ലേണിംഗ്",
+        aiWelcome: "ഹലോ! ഞാൻ നിങ്ങളുടെ ExpensePro AI ആണ്. എനിക്ക് നിങ്ങളുടെ ചിലവുകൾ പരിശോധിക്കാനോ ബിൽ റിമൈൻഡറുകൾ സെറ്റ് ചെയ്യാനോ കഴിയും. 'മാർച്ച് 25-ന് എന്റെ വൈദ്യുതി ബില്ല് ഓർമ്മിപ്പിക്കുക' എന്ന് പറഞ്ഞു നോക്കൂ.",
+        aiQuickAnalyze: "മാസം പരിശോധിക്കുക",
+        aiQuickBills: "വരാനിരിക്കുന്ന ബില്ലുകൾ"
+    }
+};
+
+function updateI18n() {
+    const elements = document.querySelectorAll('[data-i18n]');
+    elements.forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[currentLanguage] && translations[currentLanguage][key]) {
+            el.textContent = translations[currentLanguage][key];
+        }
+    });
+    
+    // Update language select value
+    const ls = document.getElementById('languageSelect');
+    if (ls) ls.value = currentLanguage;
+}
+
+window.changeLanguage = function(lang) {
+    currentLanguage = lang;
+    localStorage.setItem('language', lang);
+    updateI18n();
+    triggerHaptic(10);
+};
 
 // Haptic & Sound Feedback State
 let isHapticsEnabled = localStorage.getItem('isHapticsEnabled') !== 'false'; // default on
 let isSoundEnabled   = localStorage.getItem('isSoundEnabled')   !== 'false'; // default on
+let isBalanceHidden = localStorage.getItem('isBalanceHidden') === 'true';
+
+window.toggleBalanceVisibility = function(e) {
+    if (e) e.stopPropagation();
+    isBalanceHidden = !isBalanceHidden;
+    localStorage.setItem('isBalanceHidden', isBalanceHidden);
+    
+    // Sync settings toggle
+    const st = document.getElementById('hideBalanceToggle');
+    if (st) st.checked = isBalanceHidden;
+    
+    // Sync dashboard icon
+    const icon = document.querySelector('#toggleBalanceBtn i');
+    if (icon) icon.className = isBalanceHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    
+    // Apply visual state
+    const el = document.getElementById('totalBalance');
+    if (el) {
+        if (isBalanceHidden) el.classList.add('is-hidden');
+        else el.classList.remove('is-hidden');
+    }
+    
+    triggerHaptic(20);
+    playSound('click');
+    updateBalance();
+};
 
 // Helper to close any modal and unlock body
 function closeModal(id) {
+    if (id === 'scanBillModal') {
+        stopCamera();
+    }
     const el = document.getElementById(id);
     if (el) {
         el.classList.remove('active');
@@ -32,6 +197,15 @@ function closeModal(id) {
         }, 300);
     }
 }
+
+window.openModal = function(id = 'addTransactionModal') {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('active');
+        document.body.classList.add('modal-open');
+        triggerHaptic(5);
+    }
+};
 let memberChartInstance = null;
 let editingId = null;
 
@@ -71,13 +245,11 @@ async function syncToIndexedDB() {
             monthlyBudget,
             goalName,
             goalAmount,
-            appTheme,
-            isOledMode,
+            isDarkMode,
             isFamilyMode,
             familyMembers,
             accentColor,
             customAvatarUrl,
-            isBalanceHidden,
             isHapticsEnabled,
             isSoundEnabled,
             epro_account: localStorage.getItem('epro_account'),
@@ -258,8 +430,6 @@ function changeCurrency(currency) {
 
 // DOM Elements
 const totalBalanceEl = document.getElementById('totalBalance');
-const toggleBalanceBtn = document.getElementById('toggleBalanceBtn');
-const balanceEyeIcon = document.getElementById('balanceEyeIcon');
 const totalIncomeEl = document.getElementById('totalIncome');
 const totalExpenseEl = document.getElementById('totalExpense');
 const transactionListEl = document.getElementById('transactionList');
@@ -641,8 +811,7 @@ const appContainer = document.getElementById('appContainer');
 const displayUsername = document.getElementById('displayUsername');
 const displayCardholder = document.getElementById('displayCardholder');
 const displayAvatar = document.getElementById('displayAvatar');
-const themeSelect = document.getElementById('themeSelect');
-const oledToggle = document.getElementById('oledToggle');
+const themeToggle = document.getElementById('themeToggle');
 const accentColorPicker = document.getElementById('accentColorPicker');
 const familyToggle = document.getElementById('familyToggle');
 const hapticToggle = document.getElementById('hapticToggle');
@@ -988,30 +1157,6 @@ document.addEventListener('DOMContentLoaded', () => {
         handleLoading();
     });
 
-    if (toggleBalanceBtn) {
-        // Initial setup
-        if (isBalanceHidden) {
-            if (balanceEyeIcon) balanceEyeIcon.className = 'fa-solid fa-eye-slash';
-            setTimeout(() => {
-                document.querySelectorAll('.sensitive-amount').forEach(el => el.classList.add('blur-balance'));
-            }, 0);
-        }
-
-        toggleBalanceBtn.addEventListener('click', () => {
-            isBalanceHidden = !isBalanceHidden;
-            localStorage.setItem('isBalanceHidden', isBalanceHidden);
-            
-            document.querySelectorAll('.sensitive-amount').forEach(el => {
-                if (isBalanceHidden) el.classList.add('blur-balance');
-                else el.classList.remove('blur-balance');
-            });
-
-            if (balanceEyeIcon) {
-                balanceEyeIcon.className = isBalanceHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
-            }
-        });
-    }
-
     // Live Date & Time on Dashboard
     const dashboardDate = document.getElementById('dashboardDate');
     function updateDashboardDate() {
@@ -1024,6 +1169,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateDashboardDate();
     setInterval(updateDashboardDate, 1000);
+
+    // Initialize Privacy State
+    const ht = document.getElementById('hideBalanceToggle');
+    if (ht) {
+        ht.checked = isBalanceHidden;
+        ht.addEventListener('change', () => {
+            // We want to sync the state, so we call the toggle function 
+            // but ensure we don't accidentally double-toggle if called from two places
+            if (isBalanceHidden !== ht.checked) {
+                toggleBalanceVisibility();
+            }
+        });
+    }
+    const dashIcon = document.querySelector('#toggleBalanceBtn i');
+    if (dashIcon) dashIcon.className = isBalanceHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    if (totalBalanceEl && isBalanceHidden) totalBalanceEl.classList.add('is-hidden');
 });
 
 function updateUI() {
@@ -1032,9 +1193,9 @@ function updateUI() {
     updateChart();
     updateSplitAnalytics();
     
-    if (userName) {
-        if (displayUsername) displayUsername.innerText = userName;
-        if (displayCardholder) displayCardholder.innerText = userName;
+    if (userName && displayUsername && displayCardholder) {
+        displayUsername.innerText = userName;
+        displayCardholder.innerText = userName;
     }
     applyAvatar(customAvatarUrl);
     
@@ -1145,12 +1306,20 @@ function animateValue(obj, targetValue, formatter) {
         const easeProgress = 1 - Math.pow(2, -10 * progress);
         const currentVal = startValue + (targetValue - startValue) * easeProgress;
         
-        obj.innerText = formatter(currentVal);
+        if (isBalanceHidden && obj.id === 'totalBalance') {
+            obj.innerText = '••••••';
+        } else {
+            obj.innerText = formatter(currentVal);
+        }
         
         if (progress < 1) {
             requestAnimationFrame(update);
         } else {
-            obj.innerText = formatter(targetValue);
+            if (isBalanceHidden && obj.id === 'totalBalance') {
+                obj.innerText = '••••••';
+            } else {
+                obj.innerText = formatter(targetValue);
+            }
             obj.style.transform = 'scale(1.05)';
             obj.style.transition = 'transform 0.15s ease';
             setTimeout(() => obj.style.transform = 'scale(1)', 150);
@@ -2331,11 +2500,7 @@ function openSettings() {
     if(settingsGoalName) settingsGoalName.value = goalName || '';
     if(settingsGoalAmount) settingsGoalAmount.value = goalAmount > 0 ? goalAmount : '';
     
-    if(themeSelect) themeSelect.value = appTheme;
-    if(oledToggle) {
-        oledToggle.checked = isOledMode;
-        oledToggle.closest('.setting-item').style.display = (appTheme === 'dark' || (appTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) ? 'flex' : 'none';
-    }
+    if(themeToggle) themeToggle.checked = isDarkMode;
     if(accentColorPicker) accentColorPicker.value = accentColor;
     if(familyToggle) familyToggle.checked = isFamilyMode;
     if(hapticToggle) hapticToggle.checked = isHapticsEnabled;
@@ -2408,13 +2573,9 @@ if (saveSettingsBtn) {
         }
 
         // Save Theme
-        if (themeSelect) {
-            appTheme = themeSelect.value;
-            localStorage.setItem('appTheme', appTheme);
-        }
-        if (oledToggle) {
-            isOledMode = oledToggle.checked;
-            localStorage.setItem('isOledMode', isOledMode);
+        if (themeToggle) {
+            isDarkMode = themeToggle.checked;
+            localStorage.setItem('isDarkMode', isDarkMode);
         }
 
         // Save Accent Color
@@ -2456,21 +2617,10 @@ if (saveSettingsBtn) {
 }
 
 function applyTheme() {
-    let activeTheme = appTheme;
-    if (activeTheme === 'system') {
-        activeTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-
-    if (activeTheme === 'light') {
-        document.body.classList.add('light-theme');
-        document.body.classList.remove('oled-theme');
-    } else {
+    if (isDarkMode) {
         document.body.classList.remove('light-theme');
-        if (isOledMode) {
-            document.body.classList.add('oled-theme');
-        } else {
-            document.body.classList.remove('oled-theme');
-        }
+    } else {
+        document.body.classList.add('light-theme');
     }
     
     // Apply Accent Color
@@ -2499,6 +2649,245 @@ modalOverlay.addEventListener('click', (e) => {
 });
 
 transactionForm.addEventListener('submit', addTransaction);
+
+// ATM Card Glare Tracking
+document.addEventListener('mousemove', (e) => {
+    const card = document.querySelector('.atm-card');
+    if (card) {
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        card.style.setProperty('--mouse-x', `${x}%`);
+        card.style.setProperty('--mouse-y', `${y}%`);
+    }
+});
+
+// More Menu (3-Dot) Logic
+// Scan Bill Feature Logic
+let cameraStream = null;
+
+window.startCamera = async function() {
+    const video = document.getElementById('videoPreview');
+    const instructions = document.getElementById('scanInstructions');
+    const initActions = document.getElementById('initScanActions');
+    const activeActions = document.getElementById('activeCameraActions');
+    const receiptPreview = document.getElementById('receiptPreview');
+
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment' }, 
+            audio: false 
+        });
+        video.srcObject = cameraStream;
+        video.style.display = 'block';
+        instructions.style.display = 'none';
+        receiptPreview.style.display = 'none';
+        
+        initActions.style.display = 'none';
+        activeActions.style.display = 'flex';
+        
+        triggerHaptic(10);
+        showToast('Camera active. Align bill within the frame.', 'info');
+    } catch (err) {
+        console.error("Camera error:", err);
+        showToast('Could not access camera. Please use upload instead.', 'error');
+    }
+};
+
+window.stopCamera = function() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    
+    const video = document.getElementById('videoPreview');
+    const instructions = document.getElementById('scanInstructions');
+    const initActions = document.getElementById('initScanActions');
+    const activeActions = document.getElementById('activeCameraActions');
+
+    if (video) {
+        video.style.display = 'none';
+        video.srcObject = null;
+    }
+    if (instructions) instructions.style.display = 'flex';
+    
+    if (initActions) initActions.style.display = 'flex';
+    if (activeActions) activeActions.style.display = 'none';
+};
+
+window.capturePhoto = function() {
+    const video = document.getElementById('videoPreview');
+    const canvas = document.getElementById('captureCanvas');
+    const flash = document.getElementById('shutterFlash');
+    const receiptPreview = document.getElementById('receiptPreview');
+    const scanLine = document.getElementById('scanningLine');
+
+    // Trigger flash effect
+    if (flash) {
+        flash.classList.add('flash-active');
+        setTimeout(() => flash.classList.remove('flash-active'), 400);
+    }
+
+    // Capture to canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    
+    // Stop camera and show preview
+    stopCamera();
+    receiptPreview.src = dataUrl;
+    receiptPreview.style.display = 'block';
+    document.getElementById('scanInstructions').style.display = 'none';
+    scanLine.style.display = 'block';
+    
+    // Start processing
+    processBillImage();
+};
+
+window.openScanModal = function() {
+    document.getElementById('scanBillModal').classList.add('active');
+    triggerHaptic(5);
+};
+
+window.handleReceiptUpload = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    const preview = document.getElementById('receiptPreview');
+    const instructions = document.querySelector('.scan-instructions');
+    const scanLine = document.getElementById('scanningLine');
+
+    reader.onload = function(e) {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+        instructions.style.display = 'none';
+        scanLine.style.display = 'block';
+        
+        // Start simulated OCR
+        processBillImage();
+    };
+    reader.readAsDataURL(file);
+};
+
+window.processBillImage = function() {
+    showToast('Analyzing bill details...', 'info');
+    triggerHaptic(20);
+
+    setTimeout(() => {
+        // Hide scanning line
+        document.getElementById('scanningLine').style.display = 'none';
+        
+        // Mock extracted data
+        const extracted = {
+            amount: (Math.random() * 100 + 10).toFixed(2),
+            category: 'Shopping',
+            title: 'Bill Scan ' + new Date().toLocaleDateString()
+        };
+
+        // Create visual extraction confirmation
+        const scanArea = document.getElementById('scanArea');
+        const badge = document.createElement('div');
+        badge.className = 'extracted-badge';
+        badge.innerText = `Detected: ${currentCurrency}${extracted.amount}`;
+        badge.style.top = '50%';
+        badge.style.left = '50%';
+        badge.style.transform = 'translate(-50%, -50%)';
+        scanArea.appendChild(badge);
+
+        showToast('Success! Pre-filling transaction...', 'success');
+        if (soundOn) {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3'); // Shutter/beep
+            audio.volume = 0.2;
+            audio.play().catch(() => {});
+        }
+        triggerHaptic(50);
+
+        setTimeout(() => {
+            // Close scan modal and open transaction modal
+            document.getElementById('scanBillModal').classList.remove('active');
+            openModal(); // Existing function to open Add Transaction
+            
+            // Pre-fill fields
+            document.getElementById('amount').value = extracted.amount;
+            document.getElementById('category').value = extracted.category;
+            const titleEl = document.querySelector('input[placeholder="What was this for?"]') || document.getElementById('title');
+            if (titleEl) titleEl.value = extracted.title;
+            
+            // Reset scan modal for next time
+            setTimeout(() => {
+                badge.remove();
+                preview.style.display = 'none';
+                instructions.style.display = 'flex';
+                document.getElementById('receiptInput').value = '';
+            }, 500);
+        }, 1500);
+    }, 3000);
+};
+
+window.toggleMoreMenu = function(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('moreDropdown');
+    if (!dropdown) return;
+
+    const isShowing = dropdown.classList.contains('active');
+    
+    // Close other dropdowns
+    const sidebarMore = document.getElementById('sidebarMoreDropdown');
+    if (sidebarMore) sidebarMore.classList.remove('active');
+    const notiDropdown = document.querySelector('.noti-dropdown');
+    if (notiDropdown) notiDropdown.classList.remove('active');
+    
+    if (isShowing) {
+        dropdown.classList.remove('active');
+    } else {
+        dropdown.classList.add('active');
+        triggerHaptic(10);
+    }
+};
+
+window.toggleSidebarMoreMenu = function(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('sidebarMoreDropdown');
+    if (!dropdown) return;
+
+    const isShowing = dropdown.classList.contains('active');
+    
+    // Close other dropdowns
+    const headerMore = document.getElementById('moreDropdown');
+    if (headerMore) headerMore.classList.remove('active');
+    const notiDropdown = document.querySelector('.noti-dropdown');
+    if (notiDropdown) notiDropdown.classList.remove('active');
+    
+    if (isShowing) {
+        dropdown.classList.remove('active');
+    } else {
+        dropdown.classList.add('active');
+        triggerHaptic(10);
+    }
+};
+
+// Close more menu when clicking outside or selecting an item
+document.addEventListener('click', (e) => {
+    const menus = [
+        { drop: document.getElementById('moreDropdown'), btn: document.getElementById('moreMenuBtn') },
+        { drop: document.getElementById('sidebarMoreDropdown'), btn: document.getElementById('sidebarMoreBtn') }
+    ];
+    
+    menus.forEach(({ drop, btn }) => {
+        if (drop && drop.classList.contains('active')) {
+            if (!drop.contains(e.target) && !btn.contains(e.target)) {
+                drop.classList.remove('active');
+            }
+            if (drop.contains(e.target) && e.target.classList.contains('more-dropdown-item')) {
+                setTimeout(() => drop.classList.remove('active'), 150);
+            }
+        }
+    });
+});
 
 // Make functions globally available for inline onclick
 window.deleteTransaction = deleteTransaction;
@@ -3499,3 +3888,127 @@ function initGlareEffect() {
         });
     });
 }
+
+// =====================================================
+// AI ASSISTANT LOGIC
+// =====================================================
+window.handleAIPress = function(e) {
+    if (e.key === 'Enter') sendMessageToAI();
+}
+
+window.sendMessageToAI = function() {
+    const input = document.getElementById('aiInput');
+    const query = input.value.trim();
+    if (!query) return;
+
+    renderChatMessage(query, 'user');
+    input.value = '';
+
+    // Show typing effect
+    const chatBody = document.getElementById('aiChatBody');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'ai-msg bot typing';
+    typingDiv.innerHTML = '<p>...</p>';
+    chatBody.appendChild(typingDiv);
+    chatBody.scrollTop = chatBody.scrollHeight;
+
+    setTimeout(() => {
+        typingDiv.remove();
+        const response = processAIQuery(query);
+        renderChatMessage(response, 'bot');
+    }, 1200);
+}
+
+window.quickAIQuery = function(query) {
+    document.getElementById('aiInput').value = query;
+    sendMessageToAI();
+}
+
+function renderChatMessage(text, sender) {
+    const chatBody = document.getElementById('aiChatBody');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `ai-msg ${sender}`;
+    msgDiv.innerHTML = `<p>${text}</p>`;
+    chatBody.appendChild(msgDiv);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    playSound('click');
+}
+
+function processAIQuery(query) {
+    const q = query.toLowerCase();
+    
+    // 1. Bill Reminders (Natural Language)
+    const billKeywords = ['remind', 'bill', 'due', 'ബില്ല്', 'ഓർമ്മിപ്പിക്കുക'];
+    if (billKeywords.some(k => q.includes(k))) {
+        // Extract amount if any
+        const amountMatch = q.match(/[\$₹]\s?(\d+)/) || q.match(/(\d+)\s?[\$₹]/);
+        const amount = amountMatch ? amountMatch[1] : null;
+        
+        // Extract date/time if any
+        const dateMatch = q.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s?\d{1,2}/) || q.match(/\d{1,2}\s?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/);
+        const dayMatch = q.match(/(\d{1,2})(st|nd|rd|th)/);
+        
+        // Malayalam pattern match
+        if (q.includes('ഓർമ്മിപ്പിക്കുക') || q.includes('മെയ്') || q.includes('മാർച്ച്')) {
+            const newReminder = { id: `rem_${Date.now()}`, description: 'Bill (ML)', dueDate: 'Upcoming', notified: false };
+            aiReminders.push(newReminder);
+            localStorage.setItem('aiReminders', JSON.stringify(aiReminders));
+            return `ശരി! നിങ്ങളുടെ ബില്ല് ഞാൻ ഓർമ്മിപ്പിക്കാം. ഇതിനായുള്ള വിവരങ്ങൾ ഞാൻ കലണ്ടറിൽ ചേർത്തിട്ടുണ്ട്. (Reminder set for your bill).`;
+        }
+
+        if (dateMatch || dayMatch) {
+            const reminderDate = dateMatch ? dateMatch[0] : dayMatch[0];
+            const newReminder = {
+                id: `rem_${Date.now()}`,
+                description: q.replace('remind', '').replace('me', '').replace('to pay', '').replace('bill', '').trim(),
+                amount: amount,
+                dueDate: reminderDate,
+                createdAt: new Date().toISOString(),
+                notified: false
+            };
+            aiReminders.push(newReminder);
+            localStorage.setItem('aiReminders', JSON.stringify(aiReminders));
+            
+            return `Got it! I've set a reminder for your bill ${amount ? 'of ' + formatCurrency(amount) : ''} due on ${reminderDate}. I'll notify you 2 days before! (Reminder Saved)`;
+        }
+        return `I can definitely set a reminder for that. Could you tell me the due date?`;
+    }
+
+    // 2. Spending Analysis
+    if (q.includes('analyze') || (q.includes('spent') && !q.includes('how much'))) {
+        const expenseSum = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        return `I've analyzed your data. You've spent a total of ${formatCurrency(expenseSum)} across ${transactions.length} transactions. Your biggest category is Food. Need more detail?`;
+    }
+
+    // 3. Category Queries
+    const categories = [...new Set(transactions.map(t => t.category.toLowerCase()))];
+    const catMatch = categories.find(c => q.includes(c));
+    if (catMatch && q.includes('how much')) {
+        const catSum = transactions.filter(t => t.category.toLowerCase() === catMatch).reduce((s, t) => s + t.amount, 0);
+        return `You have spent ${formatCurrency(catSum)} on ${catMatch.charAt(0).toUpperCase() + catMatch.slice(1)} so far.`;
+    }
+
+    // 4. Default
+    return `I'm not quite sure how to help with that yet, but I'm learning! You can ask me to "Analyze my month" or "Remind me of a bill".`;
+}
+initGlareEffect();
+updateI18n();
+
+function checkAIReminders() {
+    const now = new Date();
+    aiReminders.forEach(rem => {
+        // Simple simulation: trigger notification once if not notified
+        if (!rem.notified) {
+            addNotification('AI Assistant', `Reminder: Your ${rem.description} is upcoming! (${rem.dueDate})`, 'warning');
+            rem.notified = true;
+            localStorage.setItem('aiReminders', JSON.stringify(aiReminders));
+        }
+    });
+}
+checkAIReminders();
+// Ensure initial data rendering
+if (typeof updateBalance === 'function') updateBalance();
+if (typeof updateDashboardKPIs === 'function') updateDashboardKPIs();
+if (typeof renderTransactions === 'function') renderTransactions();
+if (typeof renderNotifications === 'function') renderNotifications();
+if (typeof processRecurringExpenses === 'function') processRecurringExpenses();

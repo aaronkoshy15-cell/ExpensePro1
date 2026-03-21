@@ -1,29 +1,36 @@
 :root {
-  --bg-color: #0b0f19;
-  --panel-bg: rgba(255, 255, 255, 0.03);
-  --panel-border: rgba(255, 255, 255, 0.08);
-  --text-primary: #ffffff;
-  --text-secondary: #94a3b8;
-  --accent-color: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.5);
+  --bg-color: #06090f;
+  --panel-bg: rgba(20, 25, 38, 0.5);
+  --panel-border: rgba(255, 255, 255, 0.04);
+  --text-primary: #f8fafc;
+  --text-secondary: #8b9bb4;
+  --accent-color: #10b981;
+  --accent-glow: rgba(16, 185, 129, 0.4);
   --success: #10b981;
-  --danger: #ef4444;
-  --card-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --danger: #f43f5e;
+  --card-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   --font-family: 'Outfit', sans-serif;
-  --glass-shadow: rgba(0, 0, 0, 0.3);
-  --glass-blur: blur(20px);
+  --glass-shadow: rgba(0, 0, 0, 0.5);
+  --glass-blur: blur(24px);
   --card-radius: 20px;
 }
 
 body.light-theme {
-  --bg-color: #f8fafc;
-  --panel-bg: rgba(255, 255, 255, 0.7);
-  --panel-border: rgba(0, 0, 0, 0.06);
-  --text-primary: #1e293b;
+  --bg-color: #f1f5f9;
+  --panel-bg: rgba(255, 255, 255, 0.8);
+  --panel-border: rgba(255, 255, 255, 1);
+  --text-primary: #0f172a;
   --text-secondary: #64748b;
-  --accent-color: #4f46e5;
-  --accent-glow: rgba(79, 70, 229, 0.2);
+  --accent-color: #059669;
+  --accent-glow: rgba(5, 150, 105, 0.2);
   --glass-shadow: rgba(0, 0, 0, 0.05);
+}
+
+body.oled-theme {
+  --bg-color: #000000;
+  --panel-bg: rgba(15, 15, 15, 0.5);
+  --panel-border: rgba(255, 255, 255, 0.05);
+  background-image: none;
 }
 
 * {
@@ -44,8 +51,8 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
-  background-image: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 35%),
-                    radial-gradient(circle at 85% 30%, rgba(124, 58, 237, 0.15), transparent 35%);
+  background-image: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.12), transparent 45%),
+                    radial-gradient(circle at 90% 80%, rgba(59, 130, 246, 0.1), transparent 45%);
   background-size: 200% 200%;
   animation: pulseBackground 15s ease infinite;
 }
@@ -669,10 +676,18 @@ h1 {
 }
 
 .card-holder-name {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
+  font-family: 'Courier New', Courier, monospace;
+  color: #f8fafc;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.6), -1px -1px 1px rgba(255,255,255,0.2);
+  display: block;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-expiry {
@@ -788,6 +803,16 @@ h1 {
 
 .stat-box:hover::after {
   opacity: 1;
+}
+
+/* Privacy Blur */
+.blur-balance {
+  filter: blur(6px) !important;
+  opacity: 0.5 !important;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+  user-select: none;
+  pointer-events: none;
+  border-radius: 4px; /* Soft edges for blur */
 }
 
 /* Animations */

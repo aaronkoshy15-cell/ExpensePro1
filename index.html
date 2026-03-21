@@ -11,6 +11,8 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <!-- i18n -->
+    <script src="i18n.js"></script>
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <!-- PDF Export Libraries -->
@@ -224,7 +226,7 @@
                     </div>
                     <div class="summary-info">
                         <span class="summary-label">Net Monthly</span>
-                        <h3 id="netMonthlyEl">$0.00</h3>
+                        <h3 id="netMonthlyEl" class="sensitive-amount">$0.00</h3>
                         <span class="summary-trend trend-up" id="netTrendEl"><i class="fa-solid fa-arrow-up"></i> 0%</span>
                     </div>
                 </div>
@@ -277,15 +279,17 @@
                             </div>
 
                             <div class="card-balance">
-                                <p class="balance-label">Total Balance</p>
-                                <h2 id="totalBalance">$0.00</h2>
+                                <p class="balance-label" style="display: flex; align-items: center; justify-content: space-between;">
+                                    Total Balance
+                                    <button class="btn-text" id="toggleBalanceBtn" style="padding:0; color:inherit; opacity:0.7;">
+                                        <i class="fa-solid fa-eye" id="balanceEyeIcon"></i>
+                                    </button>
+                                </p>
+                                <h2 id="totalBalance" class="sensitive-amount">$0.00</h2>
                             </div>
                             
                             <div class="card-footer">
-                                <div class="footer-left">
-                                    <span class="card-label">CARD HOLDER</span>
-                                    <span class="card-holder-name" id="displayCardholder">User Name</span>
-                                </div>
+                                <div class="footer-left"></div>
                                 <i class="fa-brands fa-cc-visa card-network-logo"></i>
                             </div>
                             <button class="card-share-btn" id="shareCardBtn" title="Share My Card">
@@ -331,14 +335,14 @@
                         <div class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
                         <div class="stat-details">
                             <p>Income</p>
-                            <h3 id="totalIncome" class="text-green">$0.00</h3>
+                            <h3 id="totalIncome" class="text-green sensitive-amount">$0.00</h3>
                         </div>
                     </div>
                     <div class="stat-box expense">
                         <div class="stat-icon"><i class="fa-solid fa-arrow-trend-down"></i></div>
                         <div class="stat-details">
                             <p>Expenses</p>
-                            <h3 id="totalExpense" class="text-red">$0.00</h3>
+                            <h3 id="totalExpense" class="text-red sensitive-amount">$0.00</h3>
                         </div>
                     </div>
                 </section>
@@ -491,12 +495,12 @@
                 <div class="subscription-kpis" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; width: 100%; margin-top: 2rem;">
                     <div class="stat-card glass-panel" style="padding: 1.25rem;">
                         <span class="summary-label">Monthly Burn</span>
-                        <h3 id="totalBurnAmount" style="font-size: 1.5rem; color: var(--danger);">$0.00</h3>
+                        <h3 id="totalBurnAmount" style="font-size: 1.5rem; color: var(--danger);" class="sensitive-amount">$0.00</h3>
                         <span class="summary-tag">Recurrent</span>
                     </div>
                     <div class="stat-card glass-panel" style="padding: 1.25rem;">
                         <span class="summary-label">Yearly Projected</span>
-                        <h3 id="yearlyProjectedAmount" style="font-size: 1.5rem; color: var(--accent-color);">$0.00</h3>
+                        <h3 id="yearlyProjectedAmount" style="font-size: 1.5rem; color: var(--accent-color);" class="sensitive-amount">$0.00</h3>
                         <span class="summary-tag">Estimate</span>
                     </div>
                     <div class="stat-card glass-panel" style="padding: 1.25rem;">
@@ -564,7 +568,7 @@
                 <div class="stat-card glass-panel">
                     <div class="stat-icon-mini"><i class="fa-solid fa-calendar-day"></i></div>
                     <span class="stat-label">Daily Average</span>
-                    <h3 id="avgDailySpend">$0</h3>
+                    <h3 id="avgDailySpend" class="sensitive-amount">$0</h3>
                     <span id="avgCompare" class="stat-compare">-- vs last month</span>
                 </div>
                 <div class="stat-card glass-panel">
@@ -576,13 +580,13 @@
                 <div class="stat-card glass-panel">
                     <div class="stat-icon-mini"><i class="fa-solid fa-rocket"></i></div>
                     <span class="stat-label">Projected Total</span>
-                    <h3 id="analyticsProjectedTotal">$0</h3>
+                    <h3 id="analyticsProjectedTotal" class="sensitive-amount">$0</h3>
                     <span id="projectedCompare" class="stat-compare">-- vs last month</span>
                 </div>
                 <div class="stat-card glass-panel" style="border: 1px solid var(--success); background: rgba(16, 185, 129, 0.05);">
                     <div class="stat-icon-mini" style="background: var(--success);"><i class="fa-solid fa-shield-halved"></i></div>
                     <span class="stat-label">Safe to Spend Today</span>
-                    <h3 id="dailySafeSpend">$0</h3>
+                    <h3 id="dailySafeSpend" class="sensitive-amount">$0</h3>
                     <span class="stat-compare">Daily allowance</span>
                 </div>
             </div>
@@ -740,6 +744,16 @@
                             <option value="BRL">BRL (R$)</option>
                         </select>
                     </div>
+                    <div class="form-group" style="text-align: left;">
+                        <label>App Language</label>
+                        <select id="languageSelect" onchange="changeLanguage(this.value)">
+                            <option value="en">English</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                            <option value="hi">हिंदी</option>
+                            <option value="zh">中文</option>
+                        </select>
+                    </div>
                     <!-- Profile Box -->
                     <div class="settings-box">
                         <h3 class="box-title"><i class="fa-solid fa-user"></i> Profile Settings</h3>
@@ -788,11 +802,22 @@
                         <h3 class="box-title"><i class="fa-solid fa-palette"></i> Appearance</h3>
                         <div class="setting-item" style="border-bottom: none; padding-top: 0;">
                             <div class="setting-info">
-                                <h3 style="font-size: 1rem;">Dark Mode</h3>
-                                <p>Switch between Dark and Light theme</p>
+                                <h3 style="font-size: 1rem;">App Theme</h3>
+                                <p>System, Dark, or Light Mode</p>
+                            </div>
+                            <select id="themeSelect" class="currency-dropdown" style="width: 110px;">
+                                <option value="system">System</option>
+                                <option value="dark">Dark</option>
+                                <option value="light">Light</option>
+                            </select>
+                        </div>
+                        <div class="setting-item" id="oledGroup">
+                            <div class="setting-info">
+                                <h3 style="font-size: 1rem;">Pure Black (OLED)</h3>
+                                <p>Save battery on OLED displays</p>
                             </div>
                             <label class="switch">
-                                <input type="checkbox" id="themeToggle" checked>
+                                <input type="checkbox" id="oledToggle">
                                 <span class="slider round"></span>
                             </label>
                         </div>
@@ -889,7 +914,9 @@
                     </div>
 
 
-                    <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1rem;">Save All Settings</button>
+                    <button class="btn-primary w-100" id="saveSettingsBtn" style="margin-top: 1.5rem; padding: 1rem; font-size: 1.05rem; justify-content: center; background: var(--card-gradient); box-shadow: 0 8px 25px var(--accent-glow); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; transition: all 0.3s ease;">
+                        <i class="fa-solid fa-floppy-disk" style="margin-right: 0.5rem;"></i> Save & Apply Changes
+                    </button>
                     <div style="margin-top: 1.5rem; display:flex; justify-content:center; gap:1.5rem; flex-wrap:wrap;">
                         <button onclick="logoutUser()" class="btn-text" style="color: var(--accent-color);"><i class="fa-solid fa-right-from-bracket"></i> Log Out</button>
                         <button id="resetAppBtn" class="btn-text" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Erase Profile &amp; Data</button>

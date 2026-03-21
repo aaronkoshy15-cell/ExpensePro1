@@ -1,17 +1,19 @@
 // State Management
 let transactions = JSON.parse(localStorage.getItem('transactions')) || [];
 let currentCurrency = localStorage.getItem('currency') || 'USD';
-let userName = localStorage.getItem('userName') || 'User';
+let userName = localStorage.getItem('userName') || 'Display Name';
 let appPin = localStorage.getItem('appPin') || null;
 let isPinEnabled = localStorage.getItem('isPinEnabled') === 'true';
 let monthlyBudget = parseFloat(localStorage.getItem('monthlyBudget')) || 0;
 let goalName = localStorage.getItem('goalName') || '';
 let goalAmount = parseFloat(localStorage.getItem('goalAmount')) || 0;
-let isDarkMode = localStorage.getItem('isDarkMode') !== 'false';
+let appTheme = localStorage.getItem('appTheme') || 'system';
+let isOledMode = localStorage.getItem('isOledMode') === 'true';
 let isFamilyMode = localStorage.getItem('isFamilyMode') === 'true';
 let familyMembers = JSON.parse(localStorage.getItem('familyMembers')) || ['Me'];
 let accentColor = localStorage.getItem('accentColor') || '#6366f1';
 let customAvatarUrl = localStorage.getItem('customAvatarUrl') || null;
+let isBalanceHidden = localStorage.getItem('isBalanceHidden') === 'true';
 
 // Haptic & Sound Feedback State
 let isHapticsEnabled = localStorage.getItem('isHapticsEnabled') !== 'false'; // default on
@@ -69,11 +71,13 @@ async function syncToIndexedDB() {
             monthlyBudget,
             goalName,
             goalAmount,
-            isDarkMode,
+            appTheme,
+            isOledMode,
             isFamilyMode,
             familyMembers,
             accentColor,
             customAvatarUrl,
+            isBalanceHidden,
             isHapticsEnabled,
             isSoundEnabled,
             epro_account: localStorage.getItem('epro_account'),
@@ -254,6 +258,8 @@ function changeCurrency(currency) {
 
 // DOM Elements
 const totalBalanceEl = document.getElementById('totalBalance');
+const toggleBalanceBtn = document.getElementById('toggleBalanceBtn');
+const balanceEyeIcon = document.getElementById('balanceEyeIcon');
 const totalIncomeEl = document.getElementById('totalIncome');
 const totalExpenseEl = document.getElementById('totalExpense');
 const transactionListEl = document.getElementById('transactionList');
@@ -635,7 +641,8 @@ const appContainer = document.getElementById('appContainer');
 const displayUsername = document.getElementById('displayUsername');
 const displayCardholder = document.getElementById('displayCardholder');
 const displayAvatar = document.getElementById('displayAvatar');
-const themeToggle = document.getElementById('themeToggle');
+const themeSelect = document.getElementById('themeSelect');
+const oledToggle = document.getElementById('oledToggle');
 const accentColorPicker = document.getElementById('accentColorPicker');
 const familyToggle = document.getElementById('familyToggle');
 const hapticToggle = document.getElementById('hapticToggle');
@@ -981,6 +988,30 @@ document.addEventListener('DOMContentLoaded', () => {
         handleLoading();
     });
 
+    if (toggleBalanceBtn) {
+        // Initial setup
+        if (isBalanceHidden) {
+            if (balanceEyeIcon) balanceEyeIcon.className = 'fa-solid fa-eye-slash';
+            setTimeout(() => {
+                document.querySelectorAll('.sensitive-amount').forEach(el => el.classList.add('blur-balance'));
+            }, 0);
+        }
+
+        toggleBalanceBtn.addEventListener('click', () => {
+            isBalanceHidden = !isBalanceHidden;
+            localStorage.setItem('isBalanceHidden', isBalanceHidden);
+            
+            document.querySelectorAll('.sensitive-amount').forEach(el => {
+                if (isBalanceHidden) el.classList.add('blur-balance');
+                else el.classList.remove('blur-balance');
+            });
+
+            if (balanceEyeIcon) {
+                balanceEyeIcon.className = isBalanceHidden ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+            }
+        });
+    }
+
     // Live Date & Time on Dashboard
     const dashboardDate = document.getElementById('dashboardDate');
     function updateDashboardDate() {
@@ -1001,9 +1032,9 @@ function updateUI() {
     updateChart();
     updateSplitAnalytics();
     
-    if (userName && displayUsername && displayCardholder) {
-        displayUsername.innerText = userName;
-        displayCardholder.innerText = userName;
+    if (userName) {
+        if (displayUsername) displayUsername.innerText = userName;
+        if (displayCardholder) displayCardholder.innerText = userName;
     }
     applyAvatar(customAvatarUrl);
     
@@ -2300,7 +2331,11 @@ function openSettings() {
     if(settingsGoalName) settingsGoalName.value = goalName || '';
     if(settingsGoalAmount) settingsGoalAmount.value = goalAmount > 0 ? goalAmount : '';
     
-    if(themeToggle) themeToggle.checked = isDarkMode;
+    if(themeSelect) themeSelect.value = appTheme;
+    if(oledToggle) {
+        oledToggle.checked = isOledMode;
+        oledToggle.closest('.setting-item').style.display = (appTheme === 'dark' || (appTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) ? 'flex' : 'none';
+    }
     if(accentColorPicker) accentColorPicker.value = accentColor;
     if(familyToggle) familyToggle.checked = isFamilyMode;
     if(hapticToggle) hapticToggle.checked = isHapticsEnabled;
@@ -2373,9 +2408,13 @@ if (saveSettingsBtn) {
         }
 
         // Save Theme
-        if (themeToggle) {
-            isDarkMode = themeToggle.checked;
-            localStorage.setItem('isDarkMode', isDarkMode);
+        if (themeSelect) {
+            appTheme = themeSelect.value;
+            localStorage.setItem('appTheme', appTheme);
+        }
+        if (oledToggle) {
+            isOledMode = oledToggle.checked;
+            localStorage.setItem('isOledMode', isOledMode);
         }
 
         // Save Accent Color
@@ -2417,10 +2456,21 @@ if (saveSettingsBtn) {
 }
 
 function applyTheme() {
-    if (isDarkMode) {
-        document.body.classList.remove('light-theme');
-    } else {
+    let activeTheme = appTheme;
+    if (activeTheme === 'system') {
+        activeTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    if (activeTheme === 'light') {
         document.body.classList.add('light-theme');
+        document.body.classList.remove('oled-theme');
+    } else {
+        document.body.classList.remove('light-theme');
+        if (isOledMode) {
+            document.body.classList.add('oled-theme');
+        } else {
+            document.body.classList.remove('oled-theme');
+        }
     }
     
     // Apply Accent Color

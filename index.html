@@ -376,12 +376,8 @@
                                 <h2 id="totalBalance">$0.00</h2>
                             </div>
                             
-                            <div class="card-footer">
-                                <div class="footer-left">
-                                    <span class="card-label" data-i18n="cardHolder">CARD HOLDER</span>
-                                    <span class="card-holder-name" id="displayCardholder">User Name</span>
-                                </div>
-                                <i class="fa-brands fa-cc-visa card-network-logo"></i>
+                            <div class="card-footer" style="justify-content: flex-end;">
+                                <i class="fa-brands fa-cc-visa card-network-logo" style="margin-left: 0;"></i>
                             </div>
                             <button class="card-share-btn" id="shareCardBtn" title="Share My Card">
                                 <i class="fa-solid fa-arrow-up-from-bracket"></i>
@@ -495,6 +491,26 @@
                                 <input type="text" id="transactionSearch" placeholder="Search transactions..." oninput="filterTransactions()">
                             </div>
                             <button class="btn-text" onclick="clearSearch()">View All</button>
+                        </div>
+                    </div>
+                    <div class="transaction-filters" style="margin-bottom: 1rem;">
+                        <button type="button" class="btn-text" onclick="toggleDateFilters()" style="font-size: 0.85rem; color: var(--accent-color); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fa-solid fa-calendar-day"></i> Filter by Date
+                        </button>
+                        <div id="dateFilterPanel" style="display: none; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 12px; border: 1px solid var(--panel-border); margin-bottom: 1rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.75rem; align-items: flex-end;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">From</label>
+                                    <input type="date" id="filterStartDate" onchange="filterTransactions()" style="padding: 0.5rem; font-size: 0.85rem;">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.75rem; margin-bottom: 0.25rem;">To</label>
+                                    <input type="date" id="filterEndDate" onchange="filterTransactions()" style="padding: 0.5rem; font-size: 0.85rem;">
+                                </div>
+                                <button type="button" class="btn-primary" onclick="clearDateFilters()" style="padding: 0.5rem 1rem; height: 38px; background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none;" title="Clear date filters">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <ul class="transaction-list" id="transactionList">
@@ -1042,6 +1058,12 @@
                         <div class="form-group">
                             <label for="amount">Amount</label>
                             <input type="number" id="amount" placeholder="0.00" step="0.01" required>
+                            <div class="quick-amounts" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button type="button" class="btn-text quick-btn" onclick="applyQuickAmount(10)">+10</button>
+                                <button type="button" class="btn-text quick-btn" onclick="applyQuickAmount(50)">+50</button>
+                                <button type="button" class="btn-text quick-btn" onclick="applyQuickAmount(100)">+100</button>
+                                <button type="button" class="btn-text quick-btn" onclick="document.getElementById('amount').value = ''" style="color: var(--danger); margin-left: auto;"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="category">Category</label>
@@ -1054,6 +1076,18 @@
                                 <option value="Salary">💰 Salary / Income</option>
                                 <option value="Other">✨ Other</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="transactionDate">Date</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="date" id="transactionDate" required style="flex: 1;">
+                                <button type="button" class="btn-primary" onclick="setYesterdayDate()" style="padding: 0 0.8rem; background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none; font-size: 0.8rem;" title="Set to yesterday">
+                                    Yesterday
+                                </button>
+                                <button type="button" class="btn-primary" onclick="setTodayDate()" style="padding: 0 0.8rem; background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none; font-size: 0.8rem;" title="Set to today">
+                                    Today
+                                </button>
+                            </div>
                         </div>
                         <div class="form-group" id="memberSelectorGroup" style="display: none;">
                             <label for="memberSelector">Paid By</label>
@@ -1076,6 +1110,18 @@
                                 <option value="yearly">Yearly</option>
                             </select>
                         </div>
+                        <div class="form-group" id="locationGroup">
+                            <label for="locationInput">Location (Optional)</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <div style="position: relative; flex: 1;">
+                                    <i class="fa-solid fa-location-dot" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 0.85rem;"></i>
+                                    <input type="text" id="locationInput" placeholder="Where was this?" style="padding-left: 2.6rem;" autocomplete="off">
+                                </div>
+                                <button type="button" id="detectLocationBtn" class="btn-primary" style="padding: 0 1rem; background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none;" title="Get current location">
+                                    <i class="fa-solid fa-crosshairs"></i>
+                                </button>
+                            </div>
+                        </div>
                         <div class="form-group" id="splitToggleGroup" style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
                             <label class="switch" style="width: 40px; height: 20px;">
                                 <input type="checkbox" id="addWithSplit">
@@ -1083,7 +1129,12 @@
                             </label>
                             <span style="font-size: 0.9rem; color: var(--text-secondary);">Split with others</span>
                         </div>
-                        <button type="submit" class="btn-primary w-100" id="saveBtn">Save Transaction</button>
+                        <div class="form-actions" style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                            <button type="submit" class="btn-primary" id="saveBtn" style="flex: 2; justify-content: center;">Save Transaction</button>
+                            <button type="button" class="btn-primary" id="saveAnotherBtn" onclick="addTransaction(event, true)" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none;" title="Save and keep modal open">
+                                <i class="fa-solid fa-plus"></i> <span style="font-size: 0.8rem;">+ Another</span>
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -1205,6 +1256,7 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="voice-ai.js"></script>
 
     <!-- AI Assistant Modal -->
     <div class="modal-overlay" id="aiAssistantModal">

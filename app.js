@@ -439,6 +439,153 @@ const closeModalBtn = document.getElementById('closeModalBtn');
 const modalOverlay = document.getElementById('addTransactionModal');
 const transactionForm = document.getElementById('transactionForm');
 const voiceAddBtn = document.getElementById('voiceAddBtn');
+const locationInput = document.getElementById('locationInput');
+const detectLocationBtn = document.getElementById('detectLocationBtn');
+
+// =====================================================
+// GEOLOCATION SERVICE
+// ====================================================
+window.detectLocation = async function() {
+    if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser");
+        return;
+    }
+
+    const originalHtml = detectLocationBtn.innerHTML;
+    detectLocationBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    detectLocationBtn.disabled = true;
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+                // Try to get a readable address using OSM Nominatim (free, no key)
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`, {
+                    headers: { 'User-Agent': 'ExpensePro/1.0' }
+                });
+                const data = await response.json();
+                
+                // Extract useful parts of the address
+                const addr = data.address;
+                const locationName = addr.amenity || addr.shop || addr.restaurant || addr.café || addr.public_building || addr.suburb || addr.city || addr.town || "Somewhere";
+                
+                locationInput.value = locationName;
+                playSound('success');
+                triggerHaptic(20);
+            } catch (err) {
+                // Fallback to coordinates
+                locationInput.value = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            } finally {
+                detectLocationBtn.innerHTML = originalHtml;
+                detectLocationBtn.disabled = false;
+            }
+        },
+        (error) => {
+            console.error("Geolocation error:", error);
+            alert("Unable to retrieve your location. Check your permissions.");
+            detectLocationBtn.innerHTML = originalHtml;
+            detectLocationBtn.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+};
+
+if (detectLocationBtn) {
+    detectLocationBtn.addEventListener('click', detectLocation);
+}
+
+// =====================================================
+// DATA ENTRY HELPERS
+// =====================================================
+window.applyQuickAmount = function(val) {
+    const amountInput = document.getElementById('amount');
+    const current = parseFloat(amountInput.value) || 0;
+    amountInput.value = (current + val).toFixed(2);
+    triggerHaptic(10);
+};
+
+// Smart Category Mapping
+const categoryKeywords = {
+    'Food': ['lunch', 'dinner', 'breakfast', 'food', 'restaurant', 'cafe', 'coffee', 'pizza', 'burger', 'grocery', 'supermarket', 'tea', 'swiggy', 'zomato', 'eat'],
+    'Transport': ['uber', 'ola', 'taxi', 'bus', 'train', 'flight', 'metro', 'fuel', 'petrol', 'diesel', 'parking', 'auto'],
+    'Shopping': ['amazon', 'flipkart', 'mall', 'clothing', 'shoes', 'gift', 'myntra', 'zara', 'h&m'],
+    'Bills': ['rent', 'electricity', 'water', 'gas', 'internet', 'wifi', 'mobile', 'recharge', 'insurance', 'subscription', 'netflix', 'spotify', 'recharge'],
+    'Entertainment': ['movie', 'cinema', 'game', 'concert', 'party', 'pub', 'club', 'ott'],
+    'Salary': ['salary', 'bonus', 'dividend', 'interest', 'freelance', 'paycheck']
+};
+
+window.predictCategory = function(text) {
+    if (!text) return;
+    const lower = text.toLowerCase();
+    for (const [cat, keywords] of Object.entries(categoryKeywords)) {
+        if (keywords.some(kw => lower.includes(kw))) {
+            const catSelect = document.getElementById('category');
+            if (catSelect && catSelect.value !== cat) {
+                catSelect.value = cat;
+                // Subtle visual feedback
+                catSelect.style.borderColor = 'var(--success)';
+                setTimeout(() => catSelect.style.borderColor = '', 1500);
+            }
+            break;
+        }
+    }
+};
+
+document.getElementById('description')?.addEventListener('input', (e) => {
+    predictCategory(e.target.value);
+});
+
+window.setTodayDate = function() {
+    const dateInput = document.getElementById('transactionDate');
+    if (dateInput) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+        playSound('click');
+        triggerHaptic(10);
+    }
+};
+
+window.setYesterdayDate = function() {
+    const dateInput = document.getElementById('transactionDate');
+    if (dateInput) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        dateInput.value = yesterday.toISOString().split('T')[0];
+        playSound('click');
+        triggerHaptic(10);
+    }
+};
+
+window.getRelativeTimeString = function(date) {
+    const now = new Date();
+    const then = new Date(date);
+    const diff = now - then;
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days}d ago`;
+    
+    return null; // Don't show for older items
+};
+
+window.toggleDateFilters = function() {
+    const panel = document.getElementById('dateFilterPanel');
+    if (!panel) return;
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+};
+
+window.clearDateFilters = function() {
+    document.getElementById('filterStartDate').value = '';
+    document.getElementById('filterEndDate').value = '';
+    renderTransactions();
+};
 
 // // =====================================================
 // LOGIN DEVICES — Multi-Device Session Tracking
@@ -1342,15 +1489,30 @@ window.clearSearch = function() {
 
 function renderTransactions() {
     const searchTerm = document.getElementById('transactionSearch')?.value.toLowerCase() || '';
+    const startDate = document.getElementById('filterStartDate')?.value;
+    const endDate = document.getElementById('filterEndDate')?.value;
+    
     transactionListEl.innerHTML = '';
     
     let filteredTransactions = transactions;
+    
+    // Text search
     if (searchTerm) {
-        filteredTransactions = transactions.filter(t => 
+        filteredTransactions = filteredTransactions.filter(t => 
             t.description.toLowerCase().includes(searchTerm) || 
             t.category.toLowerCase().includes(searchTerm) ||
             t.amount.toString().includes(searchTerm)
         );
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        filteredTransactions = filteredTransactions.filter(t => {
+            const tDate = t.date.split('T')[0];
+            if (startDate && tDate < startDate) return false;
+            if (endDate && tDate > endDate) return false;
+            return true;
+        });
     }
 
     if (filteredTransactions.length === 0) {
@@ -1405,6 +1567,7 @@ function renderTransactions() {
             const sign = t.type === 'income' ? '+' : '-';
             
             const timeStr = new Date(t.date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+            const relativeStr = getRelativeTimeString(t.date);
             
             li.innerHTML = `
                 <div class="t-icon ${catInfo.class}">
@@ -1412,7 +1575,11 @@ function renderTransactions() {
                 </div>
                 <div class="t-info">
                     <div class="t-title">${t.description} ${isSpike ? '<span class="spike-tag">Spike</span>' : ''}</div>
-                    <div class="t-date">${timeStr} • ${t.category}${isFamilyMode ? ' • ' + (t.member || 'Me') : ''}</div>
+                    <div class="t-date">
+                        <span>${timeStr} • ${t.category}${isFamilyMode ? ' • ' + (t.member || 'Me') : ''}</span>
+                        ${relativeStr ? `<span class="relative-time">${relativeStr}</span>` : ''}
+                    </div>
+                    ${t.location ? `<div class="location-tag"><i class="fa-solid fa-location-dot"></i> ${t.location}</div>` : ''}
                 </div>
                 <div class="t-amount ${amountClass}">
                     ${sign}${new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).format(t.amount)}
@@ -1448,6 +1615,12 @@ function openEditTransactionModal(id) {
     document.getElementById('amount').value = t.amount;
     document.getElementById('category').value = t.category;
     document.getElementById('description').value = t.description;
+    if (locationInput) locationInput.value = t.location || '';
+    
+    // Set date if available
+    if (t.date) {
+        document.getElementById('transactionDate').value = new Date(t.date).toISOString().split('T')[0];
+    }
     
     if (t.type === 'income') {
         document.getElementById('typeIncome').checked = true;
@@ -1478,6 +1651,13 @@ function openModal() {
     document.getElementById('saveBtn').innerText = 'Save Transaction';
     editingId = null;
     transactionForm.reset();
+    if (locationInput) locationInput.value = '';
+    
+    // Set default date to today
+    const dateInput = document.getElementById('transactionDate');
+    if (dateInput) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
 }
 
 function openEditModal(id) {
@@ -1494,8 +1674,8 @@ function deleteTransaction(id) {
     }
 }
 
-function addTransaction(e) {
-    e.preventDefault();
+function addTransaction(e, addAnother = false) {
+    if (e) e.preventDefault();
     
     const type = document.querySelector('input[name="type"]:checked').value;
     const amount = parseFloat(document.getElementById('amount').value);
@@ -1522,17 +1702,35 @@ function addTransaction(e) {
         const isRecurring = isRecurringToggle?.checked || false;
         const frequency = isRecurring ? recurringFrequencySelect.value : null;
 
+        const transactionDateValue = document.getElementById('transactionDate')?.value;
+        let finalDate;
+        
+        if (!transactionDateValue) {
+            finalDate = new Date().toISOString();
+        } else {
+            const selectedDate = new Date(transactionDateValue);
+            const now = new Date();
+            // If the selected date is today, use the current time as well
+            if (selectedDate.toDateString() === now.toDateString()) {
+                finalDate = now.toISOString();
+            } else {
+                // Otherwise use the selected date at midnight
+                finalDate = selectedDate.toISOString();
+            }
+        }
+
         const newTransaction = {
             id: editingTransactionId || `t_${Date.now()}`,
             type,
             amount,
             category,
-            description: finalDescription, // Use finalDescription
+            description: finalDescription,
             member: selectedMember,
             isRecurring,
             frequency,
+            location: locationInput ? locationInput.value.trim() : null,
             lastProcessed: isRecurring ? new Date().toISOString() : null,
-            date: new Date().toISOString()
+            date: finalDate
         };
 
         if (editingTransactionId) {
@@ -1567,7 +1765,23 @@ function addTransaction(e) {
             transactionForm.reset();
             editingId = null;
             document.getElementById('typeExpense').checked = true;
-            closeModal('modalOverlay');
+            
+            // Re-init date for "Add Another"
+            const dateInput = document.getElementById('transactionDate');
+            if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+
+            if (!addAnother) {
+                closeModal('modalOverlay');
+            } else {
+                playSound('success');
+                // Brief flash to show it saved
+                const modal = document.querySelector('#addTransactionModal .modal');
+                if (modal) {
+                    modal.style.boxShadow = '0 0 30px var(--success)';
+                    setTimeout(() => modal.style.boxShadow = '', 1000);
+                }
+            }
+
             window.clearSearch();
             updateUI();
             if (subscriptionsView.style.display !== 'none') renderSubscriptions();
@@ -3889,123 +4103,9 @@ function initGlareEffect() {
     });
 }
 
-// =====================================================
-// AI ASSISTANT LOGIC
-// =====================================================
-window.handleAIPress = function(e) {
-    if (e.key === 'Enter') sendMessageToAI();
-}
-
-window.sendMessageToAI = function() {
-    const input = document.getElementById('aiInput');
-    const query = input.value.trim();
-    if (!query) return;
-
-    renderChatMessage(query, 'user');
-    input.value = '';
-
-    // Show typing effect
-    const chatBody = document.getElementById('aiChatBody');
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'ai-msg bot typing';
-    typingDiv.innerHTML = '<p>...</p>';
-    chatBody.appendChild(typingDiv);
-    chatBody.scrollTop = chatBody.scrollHeight;
-
-    setTimeout(() => {
-        typingDiv.remove();
-        const response = processAIQuery(query);
-        renderChatMessage(response, 'bot');
-    }, 1200);
-}
-
-window.quickAIQuery = function(query) {
-    document.getElementById('aiInput').value = query;
-    sendMessageToAI();
-}
-
-function renderChatMessage(text, sender) {
-    const chatBody = document.getElementById('aiChatBody');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `ai-msg ${sender}`;
-    msgDiv.innerHTML = `<p>${text}</p>`;
-    chatBody.appendChild(msgDiv);
-    chatBody.scrollTop = chatBody.scrollHeight;
-    playSound('click');
-}
-
-function processAIQuery(query) {
-    const q = query.toLowerCase();
-    
-    // 1. Bill Reminders (Natural Language)
-    const billKeywords = ['remind', 'bill', 'due', 'ബില്ല്', 'ഓർമ്മിപ്പിക്കുക'];
-    if (billKeywords.some(k => q.includes(k))) {
-        // Extract amount if any
-        const amountMatch = q.match(/[\$₹]\s?(\d+)/) || q.match(/(\d+)\s?[\$₹]/);
-        const amount = amountMatch ? amountMatch[1] : null;
-        
-        // Extract date/time if any
-        const dateMatch = q.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s?\d{1,2}/) || q.match(/\d{1,2}\s?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/);
-        const dayMatch = q.match(/(\d{1,2})(st|nd|rd|th)/);
-        
-        // Malayalam pattern match
-        if (q.includes('ഓർമ്മിപ്പിക്കുക') || q.includes('മെയ്') || q.includes('മാർച്ച്')) {
-            const newReminder = { id: `rem_${Date.now()}`, description: 'Bill (ML)', dueDate: 'Upcoming', notified: false };
-            aiReminders.push(newReminder);
-            localStorage.setItem('aiReminders', JSON.stringify(aiReminders));
-            return `ശരി! നിങ്ങളുടെ ബില്ല് ഞാൻ ഓർമ്മിപ്പിക്കാം. ഇതിനായുള്ള വിവരങ്ങൾ ഞാൻ കലണ്ടറിൽ ചേർത്തിട്ടുണ്ട്. (Reminder set for your bill).`;
-        }
-
-        if (dateMatch || dayMatch) {
-            const reminderDate = dateMatch ? dateMatch[0] : dayMatch[0];
-            const newReminder = {
-                id: `rem_${Date.now()}`,
-                description: q.replace('remind', '').replace('me', '').replace('to pay', '').replace('bill', '').trim(),
-                amount: amount,
-                dueDate: reminderDate,
-                createdAt: new Date().toISOString(),
-                notified: false
-            };
-            aiReminders.push(newReminder);
-            localStorage.setItem('aiReminders', JSON.stringify(aiReminders));
-            
-            return `Got it! I've set a reminder for your bill ${amount ? 'of ' + formatCurrency(amount) : ''} due on ${reminderDate}. I'll notify you 2 days before! (Reminder Saved)`;
-        }
-        return `I can definitely set a reminder for that. Could you tell me the due date?`;
-    }
-
-    // 2. Spending Analysis
-    if (q.includes('analyze') || (q.includes('spent') && !q.includes('how much'))) {
-        const expenseSum = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-        return `I've analyzed your data. You've spent a total of ${formatCurrency(expenseSum)} across ${transactions.length} transactions. Your biggest category is Food. Need more detail?`;
-    }
-
-    // 3. Category Queries
-    const categories = [...new Set(transactions.map(t => t.category.toLowerCase()))];
-    const catMatch = categories.find(c => q.includes(c));
-    if (catMatch && q.includes('how much')) {
-        const catSum = transactions.filter(t => t.category.toLowerCase() === catMatch).reduce((s, t) => s + t.amount, 0);
-        return `You have spent ${formatCurrency(catSum)} on ${catMatch.charAt(0).toUpperCase() + catMatch.slice(1)} so far.`;
-    }
-
-    // 4. Default
-    return `I'm not quite sure how to help with that yet, but I'm learning! You can ask me to "Analyze my month" or "Remind me of a bill".`;
-}
+// AI Logic has been moved to voice-ai.js
 initGlareEffect();
 updateI18n();
-
-function checkAIReminders() {
-    const now = new Date();
-    aiReminders.forEach(rem => {
-        // Simple simulation: trigger notification once if not notified
-        if (!rem.notified) {
-            addNotification('AI Assistant', `Reminder: Your ${rem.description} is upcoming! (${rem.dueDate})`, 'warning');
-            rem.notified = true;
-            localStorage.setItem('aiReminders', JSON.stringify(aiReminders));
-        }
-    });
-}
-checkAIReminders();
 // Ensure initial data rendering
 if (typeof updateBalance === 'function') updateBalance();
 if (typeof updateDashboardKPIs === 'function') updateDashboardKPIs();
